@@ -623,9 +623,31 @@
   <script>
     // Конфигурация подключения к серверу
     const SERVER_CONFIG = {
-      // В локальной сети - подключение к нашему IP
-      // При публикации в интернете - заменить на реальный адрес сервера
-      url: window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://' + window.location.hostname,
+      // Автоматическое определение URL сервера
+      // Поддерживает Netlify, Glitch, Railway и локальный сервер
+      url: (() => {
+        // Получаем текущий домен
+        const currentHost = window.location.hostname;
+        
+        // Если мы на локальном хосте, используем локальный сервер
+        if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+          return 'http://localhost:8000';
+        }
+        
+        // Если мы на Glitch, определяем автоматически
+        if (currentHost.includes('glitch.me')) {
+          return window.location.origin;
+        }
+        
+        // Если мы на Railway, определяем автоматически
+        if (currentHost.includes('up.railway.app')) {
+          return window.location.origin;
+        }
+        
+        // Для Netlify - пытаемся подключиться к Glitch (замените на свой сервер)
+        // ЗАМЕНИТЕ НА URL ВАШЕГО СЕРВЕРА на Glitch ИЛИ Railway:
+        return 'https://nolove-game.glitch.me';
+      })(),
       options: {
         reconnection: true,
         reconnectionAttempts: Infinity,
