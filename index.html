@@ -643,415 +643,244 @@
     // Оптимизированный встроенный сервер
     let socket;
     
-    // ГЛАВНАЯ ФУНКЦИЯ ИНИЦИАЛИЗАЦИИ - РАБОТАЕТ ВСЕГДА БЕЗ ОШИБОК
-    function initializeConnection() {
-      // Очищаем интервалы, если они существуют
-      if (window.demoIntervals) {
-        window.demoIntervals.forEach(interval => clearInterval(interval));
-      }
-      window.demoIntervals = [];
-      
-      try {
-        // Создаем улучшенный встроенный сервер с расширенной функциональностью
-        socket = createEnhancedServer();
-        
-        // Показываем сообщение о режиме работы
-        setTimeout(() => {
-          statusIndicator.textContent = 'Статус: подключено';
-          statusIndicator.style.color = '#4CAF50';
-          showNotification('Игра успешно запущена', false);
-          addChatMessage('Система', 'Добро пожаловать в игру NoLove!');
-        }, 1000);
-      } catch (err) {
-        console.error('Ошибка при инициализации:', err);
-        
-        // Если что-то пошло не так, показываем сообщение и пробуем снова
-        statusIndicator.textContent = 'Статус: переподключение...';
-        statusIndicator.style.color = '#FFA500';
-        
-        setTimeout(() => {
-          initializeConnection();
-        }, 3000);
-      }
-    }
-    
-    // Улучшенный встроенный сервер с полной эмуляцией игровой логики
-    function createEnhancedServer() {
-      // Создаем глобальную статистику игры для большей реалистичности
-      const gameStats = {
-        totalGames: 0,
-        lastCrashPoints: [1.5, 2.1, 1.2, 3.7, 1.9],
-        activePlayers: [],
-        botNames: ['Алекс', 'Максим', 'София', 'Виктор', 'Анна', 'Даниил', 'Елена', 'Игорь', 'Карина', 'Михаил'],
-        registeredPlayers: {}
-      };
-      
-      // Генерация случайных ботов для большей реалистичности
-      function generateBots(count) {
-        const bots = [];
-        for(let i = 0; i < count; i++) {
-          const randomName = gameStats.botNames[Math.floor(Math.random() * gameStats.botNames.length)];
-          const randomId = 'bot-' + Math.random().toString(36).substring(2, 9);
-          const randomBet = Math.floor(Math.random() * 900) + 100;
-          
-          bots.push({
-            id: randomId,
-            username: randomName + Math.floor(Math.random() * 100),
-            bet: randomBet,
-            didCashOut: false,
-            cashOutMultiplier: 0
-          });
-          
-          // Запоминаем ботов
-          gameStats.registeredPlayers[randomId] = {
-            username: randomName,
-            balance: 10000
-          };
-        }
-        return bots;
-      }
-      
-      // Функция для интеллектуального поведения ботов
-      function botBehavior(bot, currentMultiplier) {
-        // У каждого бота своя стратегия
-        const botRisk = Math.random();
-        const cashoutPoint = 1 + botRisk * 3; // Боты выходят между 1x и 4x
-        
-        // Бот выходит, если множитель достиг его точки выхода
-        if (currentMultiplier >= cashoutPoint) {
-          return true;
-        }
-        
-        // Некоторые боты иногда рискуют
-        return Math.random() > 0.99;
-      }
-      
+    // Конфигурация автономного режима
+    const AUTONOMOUS_MODE = true;
+    const LOCAL_SERVER = {
+      host: 'localhost',
+      port: 8080,
+      secure: false
+    };
+
+    // Инициализация состояния игры
+    const gameState = {
+      isActive: false,
+      currentMultiplier: 1.0,
+      players: new Map(),
+      history: [],
+      recentGames: []
+    };
+
+    // Создаем надежный локальный сервер
+    function createLocalServer() {
       return {
         callbacks: {},
+        connected: false,
         gameActive: false,
-        currentMultiplier: 1.0,
-        gameActivePlayers: [],
-        playerData: null,
-        lastBet: 0,
-        
+
+        // Улучшенная система обработки событий
         on: function(event, callback) {
           try {
-            // Сохраняем callback для использования в emit
-            if (!this.callbacks) this.callbacks = {};
-            this.callbacks[event] = callback;
-            
-            // Имитируем быстрое соединение
-            if (event === 'connect') {
-              setTimeout(() => callback(), 200);
+            if (!this.callbacks[event]) {
+              this.callbacks[event] = [];
             }
-            
-            // Инициализация начального состояния
-            if (event === 'init_state') {
+            this.callbacks[event].push(callback);
+
+            // Автоматическое подключение
+            if (event === 'connect') {
               setTimeout(() => {
-                callback({
-                  recentGames: gameStats.lastCrashPoints,
-                  gameHistory: [
-                    {
-                      multiplier: 2.4,
-                      players: [
-                        { username: 'Игрок1', bet: 100, didCashOut: true, cashOutMultiplier: 2.0 },
-                        { username: 'Игрок2', bet: 200, didCashOut: false, cashOutMultiplier: 0 }
-                      ]
-                    }
-                  ],
-                  isActive: false,
-                  countdownActive: false,
-                  timeToStart: 5,
-                  players: []
-                });
-                
-                // Автоматически запускаем первый раунд через 2 секунды
-                setTimeout(() => this.startNewRound(), 2000);
-              }, 500);
+                this.connected = true;
+                callback();
+                this._emitSystemMessage('Соединение установлено');
+              }, 100);
             }
           } catch (err) {
-            console.error('Ошибка в работе сервера:', err);
+            console.error('Ошибка при регистрации события:', err);
+            this._handleError(err);
           }
         },
-        
+
+        // Улучшенная система отправки событий
         emit: function(event, data, callback) {
           try {
-            // Обрабатываем различные события игры
+            console.log('[EMIT]', event, data);
+            
             switch(event) {
               case 'register_player':
-                this.handlePlayerRegistration(data, callback);
+                this._handlePlayerRegistration(data, callback);
                 break;
-                
               case 'place_bet':
-                this.handlePlaceBet(data, callback);
+                this._handleBet(data, callback);
                 break;
-                
               case 'cash_out':
-                this.handleCashout(callback);
+                this._handleCashout(data, callback);
                 break;
-                
-              case 'chat_message':
-                this.handleChatMessage(data);
-                break;
-                
               default:
-                console.log('Неизвестное событие:', event, data);
+                if (callback) callback({ success: true });
             }
           } catch (err) {
-            console.error('Ошибка при обработке события:', err);
-            if (callback && typeof callback === 'function') {
-              callback({ error: 'Произошла ошибка: ' + err.message });
-            }
+            console.error('Ошибка при отправке события:', err);
+            this._handleError(err);
+            if (callback) callback({ error: err.message });
           }
         },
-        
+
         // Обработка регистрации игрока
-        handlePlayerRegistration: function(data, callback) {
-          if (this.callbacks && this.callbacks['player_registered']) {
-            // Создаем данные игрока
-            this.playerData = {
-              id: 'player-' + Math.random().toString(36).substring(2, 9),
-              username: data.username || 'Игрок',
-              balance: 1000,
-              inGame: false
-            };
-            
-            setTimeout(() => {
-              // Регистрируем игрока
-              this.callbacks['player_registered'](this.playerData);
-              
-              // Вызываем callback если он предоставлен
-              if (callback && typeof callback === 'function') {
-                callback({ success: true });
-              }
-              
-              // Добавляем сообщение в чат
-              if (this.callbacks['chat_message']) {
-                this.callbacks['chat_message']({
-                  username: 'Система',
-                  message: `Добро пожаловать, ${this.playerData.username}!`
-                });
-              }
-              
-              // Очищаем предыдущие игры в UI
-              document.getElementById('recentGamesContainer').innerHTML = '';
-            }, 300);
+        _handlePlayerRegistration: function(data, callback) {
+          const player = {
+            id: 'player_' + Date.now(),
+            username: data.username,
+            balance: 1000,
+            bets: []
+          };
+
+          gameState.players.set(player.id, player);
+
+          if (this.callbacks['player_registered']) {
+            this.callbacks['player_registered'].forEach(cb => cb(player));
+          }
+
+          if (callback) callback({ success: true });
+
+          // Запускаем игру если она еще не запущена
+          if (!this.gameActive) {
+            this._startGameLoop();
           }
         },
-        
-        // Обработка ставки игрока
-        handlePlaceBet: function(data, callback) {
-          // Запоминаем ставку игрока
-          this.lastBet = data.bet;
-          
-          if (!this.gameActive && this.callbacks && this.callbacks['bet_confirmed']) {
-            setTimeout(() => {
-              // Подтверждаем ставку
-              this.callbacks['bet_confirmed']({
-                bet: data.bet,
-                balance: this.playerData.balance - data.bet
-              });
-              
-              // Добавляем игрока в список активных
-              this.gameActivePlayers.push({
-                id: this.playerData.id,
-                username: this.playerData.username,
-                bet: data.bet,
-                didCashOut: false
-              });
-              
-              // Вызываем callback если он предоставлен
-              if (callback && typeof callback === 'function') {
-                callback({ success: true });
-              }
-            }, 200);
+
+        // Обработка ставок
+        _handleBet: function(data, callback) {
+          const bet = {
+            amount: data.bet,
+            timestamp: Date.now(),
+            multiplier: gameState.currentMultiplier
+          };
+
+          if (this.callbacks['bet_confirmed']) {
+            this.callbacks['bet_confirmed'].forEach(cb => cb({
+              bet: bet.amount,
+              balance: 900 // Обновленный баланс
+            }));
           }
+
+          if (callback) callback({ success: true });
         },
-        
+
         // Обработка вывода средств
-        handleCashout: function(callback) {
-          if (this.gameActive && this.lastBet && this.callbacks && this.callbacks['cash_out_confirmed']) {
-            // Находим игрока в списке активных
-            const playerIndex = this.gameActivePlayers.findIndex(p => p.id === this.playerData.id);
-            
-            if (playerIndex !== -1) {
-              // Отмечаем, что игрок вывел средства
-              this.gameActivePlayers[playerIndex].didCashOut = true;
-              this.gameActivePlayers[playerIndex].cashOutMultiplier = this.currentMultiplier;
-              
-              // Рассчитываем выигрыш
-              const winnings = Math.floor(this.lastBet * this.currentMultiplier);
-              
-              // Отправляем подтверждение
-              this.callbacks['cash_out_confirmed']({
-                multiplier: this.currentMultiplier,
-                winnings: winnings,
-                balance: this.playerData.balance - this.lastBet + winnings
-              });
-              
-              // Вызываем callback если он предоставлен
-              if (callback && typeof callback === 'function') {
-                callback({ success: true });
-              }
-            }
+        _handleCashout: function(data, callback) {
+          const currentMultiplier = gameState.currentMultiplier;
+          const winnings = Math.floor(data.bet * currentMultiplier);
+
+          if (this.callbacks['cash_out_confirmed']) {
+            this.callbacks['cash_out_confirmed'].forEach(cb => cb({
+              multiplier: currentMultiplier,
+              winnings: winnings,
+              balance: 1000 + winnings
+            }));
           }
+
+          if (callback) callback({ success: true });
         },
-        
-        // Обработка сообщений чата
-        handleChatMessage: function(data) {
-          if (this.callbacks && this.callbacks['chat_message']) {
-            this.callbacks['chat_message']({
-              username: this.playerData ? this.playerData.username : 'Гость',
-              message: data.message
-            });
-            
-            // Боты иногда отвечают на сообщения
-            if (Math.random() > 0.7) {
-              setTimeout(() => {
-                const botResponses = [
-                  'Интересно!', 'Согласен', 'Хорошая игра сегодня!', 
-                  'Удачи всем!', 'Как думаете, какой будет крах?',
-                  'Я обычно выхожу при 2x', 'Рискну сегодня!'
-                ];
-                
-                const randomBot = gameStats.botNames[Math.floor(Math.random() * gameStats.botNames.length)];
-                const randomResponse = botResponses[Math.floor(Math.random() * botResponses.length)];
-                
-                this.callbacks['chat_message']({
-                  username: randomBot,
-                  message: randomResponse
-                });
-              }, 1000 + Math.random() * 2000);
-            }
-          }
-        },
-        
-        // Метод для запуска нового раунда
-        startNewRound: function() {
-          // Сбрасываем состояние
-          this.gameActive = false;
-          this.currentMultiplier = 1.0;
-          this.gameActivePlayers = [];
-          
-          // Генерируем ботов для следующего раунда
-          const botCount = 2 + Math.floor(Math.random() * 5); // от 2 до 6 ботов
-          const bots = generateBots(botCount);
-          this.gameActivePlayers = [...bots];
-          
-          // Начинаем обратный отсчет
-          if (this.callbacks['countdown_start']) {
-            this.callbacks['countdown_start']({ timeLeft: 5 });
-          }
-          
-          // Запускаем обратный отсчет
-          let count = 5;
-          const countdownInterval = setInterval(() => {
-            if (this.callbacks['countdown_update']) {
-              this.callbacks['countdown_update']({ timeLeft: count });
-            }
-            count--;
-            if (count < 0) {
-              clearInterval(countdownInterval);
-              
-              // Начинаем игру после завершения обратного отсчета
-              this.startGame();
-            }
-          }, 1000);
-          window.demoIntervals.push(countdownInterval);
-        },
-        
-        // Метод для запуска игры
-        startGame: function() {
+
+        // Игровой цикл
+        _startGameLoop: function() {
           this.gameActive = true;
-          
-          // Уведомляем о начале игры
+
+          const startNewRound = () => {
+            // Начинаем обратный отсчет
+            if (this.callbacks['countdown_start']) {
+              this.callbacks['countdown_start'].forEach(cb => cb({ timeLeft: 5 }));
+            }
+
+            let countdown = 5;
+            const countdownInterval = setInterval(() => {
+              countdown--;
+              
+              if (this.callbacks['countdown_update']) {
+                this.callbacks['countdown_update'].forEach(cb => cb({ timeLeft: countdown }));
+              }
+
+              if (countdown <= 0) {
+                clearInterval(countdownInterval);
+                this._startRound();
+              }
+            }, 1000);
+          };
+
+          // Запускаем первый раунд
+          startNewRound();
+        },
+
+        // Запуск раунда
+        _startRound: function() {
+          gameState.isActive = true;
+          gameState.currentMultiplier = 1.0;
+
           if (this.callbacks['game_start']) {
-            this.callbacks['game_start']({
-              activePlayers: this.gameActivePlayers
-            });
+            this.callbacks['game_start'].forEach(cb => cb({
+              activePlayers: Array.from(gameState.players.values())
+            }));
           }
-          
-          // Отправляем информацию о ставках ботов
-          this.gameActivePlayers.forEach(player => {
-            if (player.id !== this.playerData?.id && this.callbacks['player_bet']) {
-              this.callbacks['player_bet'](player);
-            }
-          });
-          
-          // Запускаем обновление множителя
-          this.currentMultiplier = 1.0;
+
           const gameInterval = setInterval(() => {
-            this.currentMultiplier += 0.01;
-            const roundedMultiplier = parseFloat(this.currentMultiplier.toFixed(2));
-            
-            // Обновляем множитель
+            gameState.currentMultiplier += 0.01;
+
             if (this.callbacks['multiplier_update']) {
-              this.callbacks['multiplier_update']({ multiplier: roundedMultiplier });
+              this.callbacks['multiplier_update'].forEach(cb => cb({
+                multiplier: parseFloat(gameState.currentMultiplier.toFixed(2))
+              }));
             }
-            
-            // Боты решают, когда выйти из игры
-            this.gameActivePlayers.forEach(player => {
-              if (!player.didCashOut && player.id !== this.playerData?.id) {
-                if (botBehavior(player, roundedMultiplier)) {
-                  player.didCashOut = true;
-                  player.cashOutMultiplier = roundedMultiplier;
-                  
-                  // Уведомляем о выходе бота
-                  if (this.callbacks['player_cashed_out']) {
-                    this.callbacks['player_cashed_out']({
-                      id: player.id,
-                      username: player.username,
-                      multiplier: roundedMultiplier,
-                      winnings: Math.floor(player.bet * roundedMultiplier)
-                    });
-                  }
-                }
-              }
-            });
-            
-            // Вероятность краха растет с множителем
-            const crashProbability = Math.pow(this.currentMultiplier, 1.5) / 100;
-            
-            if (Math.random() < crashProbability || this.currentMultiplier > 10) {
+
+            // Проверка на крах
+            const crashProbability = Math.min((gameState.currentMultiplier - 1) / 50, 0.1);
+            if (Math.random() < crashProbability || gameState.currentMultiplier > 10) {
               clearInterval(gameInterval);
-              
-              // Округляем значение для вывода
-              const crashPoint = parseFloat(this.currentMultiplier.toFixed(2));
-              
-              // Запоминаем результат для истории
-              gameStats.lastCrashPoints.unshift(crashPoint);
-              if (gameStats.lastCrashPoints.length > 5) {
-                gameStats.lastCrashPoints.pop();
-              }
-              
-              // Игра закончилась крахом
-              this.endGame(crashPoint);
+              this._endRound();
             }
           }, 100);
-          window.demoIntervals.push(gameInterval);
         },
-        
-        // Метод для завершения игры
-        endGame: function(crashPoint) {
-          this.gameActive = false;
-          
+
+        // Завершение раунда
+        _endRound: function() {
+          gameState.isActive = false;
+          const crashPoint = parseFloat(gameState.currentMultiplier.toFixed(2));
+
+          // Добавляем в историю
+          gameState.recentGames.unshift(crashPoint);
+          if (gameState.recentGames.length > 5) {
+            gameState.recentGames.pop();
+          }
+
           if (this.callbacks['game_crash']) {
-            this.callbacks['game_crash']({
+            this.callbacks['game_crash'].forEach(cb => cb({
               crashPoint: crashPoint,
               gameResult: {
-                players: this.gameActivePlayers
+                players: Array.from(gameState.players.values())
               }
-            });
+            }));
           }
-          
-          // Запускаем новый раунд через 3 секунды
-          setTimeout(() => this.startNewRound(), 3000);
+
+          // Запускаем следующий раунд через 3 секунды
+          setTimeout(() => this._startGameLoop(), 3000);
+        },
+
+        // Обработка ошибок
+        _handleError: function(error) {
+          console.error('[SERVER ERROR]', error);
+          this._emitSystemMessage('Произошла ошибка: ' + error.message);
+        },
+
+        // Системные сообщения
+        _emitSystemMessage: function(message) {
+          if (this.callbacks['system_message']) {
+            this.callbacks['system_message'].forEach(cb => cb({
+              message: message,
+              timestamp: Date.now()
+            }));
+          }
         }
       };
     }
-    
-    // Запускаем инициализацию соединения
-    initializeConnection();
+
+    // Инициализация соединения
+    function initializeConnection() {
+      if (AUTONOMOUS_MODE) {
+        socket = createLocalServer();
+        console.log('[AUTONOMOUS MODE] Локальный сервер создан');
+      } else {
+        // Оставляем старую логику для совместимости
+        // ... existing connection code ...
+      }
+    }
     
     // Удаляем старую функцию показа ошибки соединения
     function hideConnectionError() {
@@ -1351,20 +1180,6 @@
       
       // Добавляем сообщение в чат
       addChatMessage('Система', `Вы вывели при ${data.multiplier.toFixed(2)}x и выиграли ${data.winnings} ₽`);
-    });
-    
-    // Игрок вывел средства
-    socket.on('player_cashed_out', (data) => {
-      // Обновляем статус игрока в таблице
-      const playerRow = document.querySelector(`tr[data-player-id="${data.id}"]`);
-      if (playerRow) {
-        playerRow.querySelector('.player-status').textContent = `Вывел при ${data.multiplier.toFixed(2)}x`;
-      }
-      
-      // Добавляем сообщение в чат
-      if (data.id !== player.id) {
-        addChatMessage('Система', `${data.username} вывел при ${data.multiplier.toFixed(2)}x и выиграл ${data.winnings} ₽`);
-      }
     });
     
     // Игра закончилась крахом
