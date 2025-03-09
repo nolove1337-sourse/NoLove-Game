@@ -3,6 +3,12 @@ publish = "."
 command = "echo 'No build step needed'"
 
 [[redirects]]
+from = "/"
+to = "/nolove.html"
+status = 200
+force = true
+
+[[redirects]]
 from = "/*"
 to = "/nolove.html"
 status = 200
