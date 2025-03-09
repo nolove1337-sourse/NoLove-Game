@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NoLove</title>
-  <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+  <!-- Добавляем актуальную версию Socket.IO с CDN -->
+  <script src="https://cdn.socket.io/4.6.0/socket.io.min.js" integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+" crossorigin="anonymous"></script>
   <style>
     body {
       margin: 0;
@@ -621,12 +622,18 @@
   </div>
   
   <script>
-    // По умолчанию выключаем демо-режим
+    // Глобальные настройки для отладки
+    window.debugMode = true;
+    
+    // По умолчанию выключаем демо-режим (приоритет у локального хранилища)
     let isDemoMode = false;
     
     // Получаем сохраненное значение из localStorage, если оно есть
     if (localStorage.getItem('nolove_demo_mode') !== null) {
       isDemoMode = localStorage.getItem('nolove_demo_mode') === 'true';
+    } else {
+      // Если значения нет в хранилище, сохраняем текущее значение
+      localStorage.setItem('nolove_demo_mode', isDemoMode);
     }
     
     // Устанавливаем начальное значение чекбокса
@@ -641,17 +648,53 @@
       window.location.reload();
     });
     
-    // Настраиваем подключение к серверу
-    // Используем публично доступный Socket.IO сервер для тестирования и демонстрации
-    const localServerUrl = 'http://localhost:8000';  // Для локальной разработки
-    const remoteServerUrl = 'https://nolove-game-server.glitch.me';  // URL нашего серверного приложения
+    // Массив серверов для резервного копирования (fallback)
+    const serverOptions = [
+      'https://nolove-game-server.glitch.me',
+      'https://nolove-game-server-1.glitch.me',
+      'https://socket-io-game-server.herokuapp.com'
+    ];
     
-    // Выбираем URL сервера в зависимости от хоста
-    const serverUrl = window.location.hostname.includes('localhost') 
-        ? localServerUrl
-        : remoteServerUrl;
-        
+    // Функция для логирования с проверкой режима отладки
+    function debugLog(...args) {
+      if (window.debugMode) {
+        console.log('[NoLove]', ...args);
+      }
+    }
+    
+    // Текущий индекс сервера
+    let currentServerIndex = 0;
+    
+    // Получаем URL сервера
+    function getServerUrl() {
+      if (window.location.hostname.includes('localhost')) {
+        return 'http://localhost:8000';
+      }
+      return serverOptions[currentServerIndex];
+    }
+    
+    // Выбираем следующий сервер
+    function tryNextServer() {
+      currentServerIndex = (currentServerIndex + 1) % serverOptions.length;
+      debugLog('Переключение на сервер:', serverOptions[currentServerIndex]);
+      return serverOptions[currentServerIndex];
+    }
+    
+    // Проверяем, есть ли Socket.IO
+    if (typeof io === 'undefined' && !isDemoMode) {
+      alert('Ошибка: Библиотека Socket.IO не загружена! Игра будет работать в демо-режиме.');
+      isDemoMode = true;
+      localStorage.setItem('nolove_demo_mode', 'true');
+      document.getElementById('demoModeToggle').checked = true;
+    }
+    
+    // Инициализируем серверный URL
+    let serverUrl = getServerUrl();
+    debugLog('Начальный сервер:', serverUrl);
+    
     let socket;
+    let connectionAttempts = 0;
+    const maxConnectionAttempts = 3;
     
     // Функция инициализации соединения
     function initializeConnection() {
@@ -874,40 +917,72 @@
         }, 1000);
       } else {
         try {
-          console.log('Попытка подключения к:', serverUrl);
+          debugLog('Попытка подключения к:', serverUrl);
+          connectionAttempts++;
           
           // Реальное подключение к Socket.IO
           socket = io(serverUrl, {
             transports: ['websocket', 'polling'],
             upgrade: true,
             reconnection: true,
-            reconnectionAttempts: 5,
+            reconnectionAttempts: 3,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
-            timeout: 15000
+            timeout: 10000
           });
           
           // Добавляем индикаторы соединения
           socket.on('connect', () => {
-            console.log('Соединение с сервером установлено');
-            addChatMessage('Система', 'Соединение с сервером установлено');
+            debugLog('Соединение с сервером установлено');
+            connectionAttempts = 0; // Сбрасываем счетчик при успешном подключении
             
-            // При успешном подключении скрываем оверлей с ошибкой, если он был показан
+            addChatMessage('Система', 'Соединение с сервером установлено');
+            showNotification('Соединение установлено!', false);
+            
+            // При успешном подключении скрываем оверлей с ошибкой
             hideConnectionError();
           });
           
           socket.on('connect_error', (error) => {
-            console.error('Ошибка соединения:', error);
+            debugLog('Ошибка соединения:', error);
+            
+            // Если превышено количество попыток, пробуем другой сервер
+            if (connectionAttempts >= maxConnectionAttempts) {
+              socket.disconnect();
+              serverUrl = tryNextServer();
+              connectionAttempts = 0;
+              
+              setTimeout(() => {
+                initializeConnection(); // Пробуем с новым сервером
+              }, 1000);
+              
+              return;
+            }
+            
             showConnectionError();
           });
           
           socket.on('disconnect', () => {
-            console.log('Соединение с сервером прервано');
+            debugLog('Соединение с сервером прервано');
             addChatMessage('Система', 'Соединение с сервером прервано. Пытаемся переподключиться...');
           });
+          
+          // Другие обработчики событий...
         } catch (err) {
-          console.error('Ошибка при инициализации сокета:', err);
+          debugLog('Ошибка при инициализации сокета:', err);
           showConnectionError();
+          
+          // Если не можем подключиться, переключаемся в демо-режим
+          if (connectionAttempts >= maxConnectionAttempts) {
+            debugLog('Переключение в демо-режим после неудачных попыток подключения');
+            isDemoMode = true;
+            localStorage.setItem('nolove_demo_mode', 'true');
+            document.getElementById('demoModeToggle').checked = true;
+            
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
+          }
         }
       }
     }
@@ -1411,6 +1486,28 @@
       } else {
         // Если оверлей уже существует, просто показываем его
         errorOverlay.style.display = 'flex';
+      }
+      
+      // Добавляем опцию переключения в демо-режим
+      if (!errorOverlay.querySelector('.demo-mode-btn')) {
+        const demoModeBtn = document.createElement('button');
+        demoModeBtn.textContent = 'Включить демо-режим';
+        demoModeBtn.className = 'demo-mode-btn';
+        demoModeBtn.style.padding = '10px 20px';
+        demoModeBtn.style.backgroundColor = '#555555';
+        demoModeBtn.style.color = 'white';
+        demoModeBtn.style.border = 'none';
+        demoModeBtn.style.borderRadius = '6px';
+        demoModeBtn.style.cursor = 'pointer';
+        demoModeBtn.style.fontSize = '16px';
+        demoModeBtn.style.marginTop = '10px';
+        demoModeBtn.onclick = function() {
+          isDemoMode = true;
+          localStorage.setItem('nolove_demo_mode', 'true');
+          window.location.reload();
+        };
+        
+        errorOverlay.appendChild(demoModeBtn);
       }
     }
     
