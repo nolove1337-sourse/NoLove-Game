@@ -1,1 +1,1 @@
-web: gunicorn --worker-class eventlet -w 1 nolove_server_8000:app 
+web: python wsgi.py 

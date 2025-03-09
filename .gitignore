@@ -29,4 +29,12 @@ yarn-error.log*
 
 # Файлы ОС
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/ 
