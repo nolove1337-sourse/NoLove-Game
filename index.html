@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NoLove</title>
+  <style>
+    :root {
+      --primary: #1a1a1a;
+      --secondary: #2d2d2d;
+      --accent: #404040;
+      --text-primary: #ffffff;
+      --text-secondary: #a3a3a3;
+    }
+    
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background-color: var(--primary);
+      color: var(--text-primary);
+    }
+    
+    * {
+      box-sizing: border-box;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1rem;
+    }
+    
+    header {
+      background-color: var(--secondary);
+      padding: 1rem 0;
+    }
+    
+    header h1 {
+      margin: 0;
+      font-size: 1.8rem;
+    }
+    
+    main {
+      padding: 2rem 0;
+    }
+    
+    .game-container {
+      background-color: var(--secondary);
+      border-radius: 8px;
+      padding: 1.5rem;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    
+    .game-area {
+      position: relative;
+      height: 240px;
+      background-color: var(--primary);
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+    }
+    
+    .plane {
+      position: absolute;
+      font-size: 2rem;
+      transition: transform 0.1s linear;
+    }
+    
+    .crash-message {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      font-weight: bold;
+      color: #ff4444;
+      display: none;
+    }
+    
+    .multiplier {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    
+    .multiplier-value {
+      font-size: 3rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+    
+    .multiplier-label {
+      color: var(--text-secondary);
+    }
+    
+    .bet-controls {
+      margin-bottom: 1rem;
+    }
+    
+    .input-group {
+      background-color: var(--accent);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    
+    .input-label {
+      display: block;
+      color: var(--text-secondary);
+      margin-bottom: 0.5rem;
+    }
+    
+    .input-field {
+      width: 100%;
+      background-color: var(--primary);
+      color: var(--text-primary);
+      border: none;
+      padding: 0.75rem;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 0.75rem;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .btn-play {
+      background-color: #2563eb;
+      color: white;
+    }
+    
+    .btn-play:hover {
+      background-color: #1d4ed8;
+    }
+    
+    .btn-play:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .btn-cashout {
+      background-color: #16a34a;
+      color: white;
+    }
+    
+    .btn-cashout:hover {
+      background-color: #15803d;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .game-stats {
+      margin-top: 2rem;
+      background-color: var(--secondary);
+      border-radius: 8px;
+      padding: 1.5rem;
+      max-width: 500px;
+      margin: 2rem auto 0;
+    }
+    
+    .stats-title {
+      margin-top: 0;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--accent);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    
+    .round-history {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    
+    .round-result {
+      background-color: var(--accent);
+      border-radius: 4px;
+      padding: 0.5rem;
+      min-width: 60px;
+      text-align: center;
+    }
+    
+    .high-result {
+      background-color: #16a34a;
+    }
+    
+    .low-result {
+      background-color: #dc2626;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>NoLove</h1>
+    </div>
+  </header>
+  
+  <main>
+    <div class="container">
+      <div class="game-container">
+        <div class="game-area" id="gameArea">
+          <div class="plane" id="plane">✈️</div>
+          <div class="crash-message" id="crashMessage">CRASH!</div>
+        </div>
+        
+        <div class="multiplier">
+          <div class="multiplier-value" id="multiplierValue">1.00x</div>
+          <div class="multiplier-label">Текущий множитель</div>
+        </div>
+        
+        <div class="bet-controls">
+          <div class="input-group">
+            <label class="input-label">Ставка</label>
+            <input 
+              type="number" 
+              class="input-field" 
+              id="betAmount" 
+              value="100" 
+              min="1"
+            >
+          </div>
+          
+          <button class="btn btn-play" id="playButton">ИГРАТЬ</button>
+          <button class="btn btn-cashout hidden" id="cashoutButton">ЗАБРАТЬ 0.00</button>
+        </div>
+      </div>
+      
+      <div class="game-stats">
+        <h3 class="stats-title">История раундов</h3>
+        <div class="round-history" id="roundHistory"></div>
+      </div>
+    </div>
+  </main>
+  
+  <script>
+    // DOM Elements
+    const plane = document.getElementById('plane');
+    const gameArea = document.getElementById('gameArea');
+    const crashMessage = document.getElementById('crashMessage');
+    const multiplierValue = document.getElementById('multiplierValue');
+    const betAmount = document.getElementById('betAmount');
+    const playButton = document.getElementById('playButton');
+    const cashoutButton = document.getElementById('cashoutButton');
+    const roundHistory = document.getElementById('roundHistory');
+    
+    // Game state
+    let isPlaying = false;
+    let gameOver = false;
+    let currentMultiplier = 1.00;
+    let animationFrameId;
+    let position = { x: 50, y: 180 };
+    
+    // Initialize the game
+    function initGame() {
+      // Set initial plane position
+      plane.style.transform = `translate(${position.x}px, ${position.y}px)`;
+      
+      // Add event listeners
+      playButton.addEventListener('click', startGame);
+      cashoutButton.addEventListener('click', cashOut);
+    }
+    
+    // Start the game
+    function startGame() {
+      if (isPlaying) return;
+      
+      isPlaying = true;
+      gameOver = false;
+      currentMultiplier = 1.00;
+      position = { x: 50, y: 180 };
+      
+      // Update UI
+      updateMultiplier(currentMultiplier);
+      crashMessage.style.display = 'none';
+      plane.style.transform = `translate(${position.x}px, ${position.y}px)`;
+      playButton.classList.add('hidden');
+      cashoutButton.classList.remove('hidden');
+      betAmount.disabled = true;
+      
+      // Start animation
+      animate();
+    }
+    
+    // Animation loop
+    function animate() {
+      // Increase multiplier
+      const increase = Math.random() * 0.1 + 0.01;
+      currentMultiplier = parseFloat((currentMultiplier + increase).toFixed(2));
+      updateMultiplier(currentMultiplier);
+      
+      // Move the plane
+      position.x += 1;
+      position.y -= 1.5;
+      plane.style.transform = `translate(${position.x}px, ${position.y}px)`;
+      
+      // Update cashout button text
+      const cashoutAmount = (parseFloat(betAmount.value) * currentMultiplier).toFixed(2);
+      cashoutButton.textContent = `ЗАБРАТЬ ${cashoutAmount}`;
+      
+      // Random chance to crash
+      const random = Math.random();
+      if (random < 0.02) { // 2% шанс проигрыша на каждом кадре
+        handleCrash();
+        return;
+      }
+      
+      animationFrameId = requestAnimationFrame(animate);
+    }
+    
+    // Handle crash
+    function handleCrash() {
+      isPlaying = false;
+      gameOver = true;
+      
+      // Update UI
+      crashMessage.style.display = 'flex';
+      multiplierValue.style.color = '#ff4444';
+      playButton.classList.remove('hidden');
+      cashoutButton.classList.add('hidden');
+      betAmount.disabled = false;
+      
+      // Add to history
+      addToHistory(currentMultiplier);
+      
+      // Cancel animation
+      cancelAnimationFrame(animationFrameId);
+    }
+    
+    // Cash out
+    function cashOut() {
+      if (!isPlaying || gameOver) return;
+      
+      isPlaying = false;
+      
+      // Calculate winnings
+      const win = parseFloat(betAmount.value) * currentMultiplier;
+      
+      // Update UI
+      playButton.classList.remove('hidden');
+      cashoutButton.classList.add('hidden');
+      betAmount.disabled = false;
+      multiplierValue.style.color = '#16a34a';
+      
+      // Add to history
+      addToHistory(currentMultiplier);
+      
+      // Show alert with winnings
+      setTimeout(() => {
+        alert(`Вы выиграли ${win.toFixed(2)}!`);
+        multiplierValue.style.color = 'white';
+      }, 100);
+      
+      // Cancel animation
+      cancelAnimationFrame(animationFrameId);
+    }
+    
+    // Update multiplier display
+    function updateMultiplier(value) {
+      multiplierValue.textContent = `${value.toFixed(2)}x`;
+    }
+    
+    // Add result to history
+    function addToHistory(value) {
+      const result = document.createElement('div');
+      result.className = 'round-result';
+      result.textContent = `${value.toFixed(2)}x`;
+      
+      if (value >= 2) {
+        result.classList.add('high-result');
+      } else if (value < 1.5) {
+        result.classList.add('low-result');
+      }
+      
+      roundHistory.prepend(result);
+      
+      // Limit history to 10 items
+      if (roundHistory.children.length > 10) {
+        roundHistory.removeChild(roundHistory.lastChild);
+      }
+    }
+    
+    // Initialize the game when the DOM is loaded
+    document.addEventListener('DOMContentLoaded', initGame);
+  </script>
+</body>
+</html> 
