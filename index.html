@@ -590,14 +590,15 @@
   </div>
   
   <script>
-    // DEMO MODE - без подключения к серверу
-    const isDemoMode = true;
+    // Отключаем демо-режим
+    const isDemoMode = false;
     
-    // URL сервера (для будущего использования)
-    // const serverUrl = window.location.origin;
-    const serverUrl = 'https://your-backend-server.com'; // Здесь нужно указать реальный URL вашего сервера
+    // Настраиваем подключение к серверу
+    // Можно использовать разные URL для локальной разработки и продакшена
+    const serverUrl = window.location.hostname.includes('localhost') 
+        ? 'http://localhost:8000'  // Для локальной разработки
+        : 'https://nolove-server.onrender.com';  // URL вашего серверного приложения
     
-    // Создаем имитацию socket для демо-режима
     let socket;
     
     if (isDemoMode) {
@@ -813,21 +814,34 @@
         alert('Внимание! Игра работает в демо-режиме без подключения к серверу. Функциональность ограничена.');
       }, 1000);
     } else {
-      // Реальное подключение к Socket.IO (когда будет готов сервер)
+      // Реальное подключение к Socket.IO
       socket = io(serverUrl, {
-        transports: ['websocket'],
-        upgrade: false
+        transports: ['websocket', 'polling'],  // Поддерживаем оба метода соединения
+        upgrade: true,  // Разрешаем апгрейд соединения
+        reconnection: true,  // Автоматически переподключаться
+        reconnectionAttempts: Infinity,  // Бесконечные попытки переподключения
+        reconnectionDelay: 1000,  // Начальная задержка переподключения
+        reconnectionDelayMax: 5000,  // Максимальная задержка переподключения
+        timeout: 20000  // Увеличенный таймаут для подключения
       });
       
-      // Добавляем индикатор соединения
+      // Добавляем индикаторы соединения
       socket.on('connect', () => {
         console.log('Соединение с сервером установлено');
         addChatMessage('Система', 'Соединение с сервером установлено');
+        
+        // При успешном подключении скрываем оверлей с ошибкой, если он был показан
+        hideConnectionError();
       });
       
       socket.on('connect_error', (error) => {
         console.error('Ошибка соединения:', error);
-        alert('Ошибка подключения к серверу. Перезагрузите страницу.');
+        showConnectionError();
+      });
+      
+      socket.on('disconnect', () => {
+        console.log('Соединение с сервером прервано');
+        addChatMessage('Система', 'Соединение с сервером прервано. Пытаемся переподключиться...');
       });
     }
     
@@ -1269,6 +1283,72 @@
       // Если это ошибка, добавляем в чат
       if (isError) {
         addChatMessage('Система', `Ошибка: ${message}`);
+      }
+    }
+
+    // Функция для отображения ошибки соединения
+    function showConnectionError() {
+      // Проверяем, существует ли уже оверлей с ошибкой
+      let errorOverlay = document.getElementById('connectionErrorOverlay');
+      
+      if (!errorOverlay) {
+        // Создаем оверлей для ошибки соединения
+        errorOverlay = document.createElement('div');
+        errorOverlay.id = 'connectionErrorOverlay';
+        errorOverlay.style.position = 'fixed';
+        errorOverlay.style.top = '0';
+        errorOverlay.style.left = '0';
+        errorOverlay.style.width = '100%';
+        errorOverlay.style.height = '100%';
+        errorOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        errorOverlay.style.display = 'flex';
+        errorOverlay.style.flexDirection = 'column';
+        errorOverlay.style.alignItems = 'center';
+        errorOverlay.style.justifyContent = 'center';
+        errorOverlay.style.zIndex = '1000';
+        
+        const messageEl = document.createElement('div');
+        messageEl.textContent = 'Ошибка подключения к серверу';
+        messageEl.style.color = 'white';
+        messageEl.style.fontSize = '24px';
+        messageEl.style.marginBottom = '20px';
+        
+        const descriptionEl = document.createElement('div');
+        descriptionEl.textContent = 'Проверьте соединение с интернетом или повторите попытку позже';
+        descriptionEl.style.color = '#ccc';
+        descriptionEl.style.fontSize = '16px';
+        descriptionEl.style.marginBottom = '30px';
+        
+        const retryBtn = document.createElement('button');
+        retryBtn.textContent = 'Повторить попытку';
+        retryBtn.style.padding = '10px 20px';
+        retryBtn.style.backgroundColor = '#4d4d4d';
+        retryBtn.style.color = 'white';
+        retryBtn.style.border = 'none';
+        retryBtn.style.borderRadius = '6px';
+        retryBtn.style.cursor = 'pointer';
+        retryBtn.style.fontSize = '16px';
+        retryBtn.onclick = function() {
+          // При нажатии пытаемся переподключиться
+          window.location.reload();
+        };
+        
+        errorOverlay.appendChild(messageEl);
+        errorOverlay.appendChild(descriptionEl);
+        errorOverlay.appendChild(retryBtn);
+        
+        document.body.appendChild(errorOverlay);
+      } else {
+        // Если оверлей уже существует, просто показываем его
+        errorOverlay.style.display = 'flex';
+      }
+    }
+    
+    // Функция для скрытия ошибки соединения
+    function hideConnectionError() {
+      const errorOverlay = document.getElementById('connectionErrorOverlay');
+      if (errorOverlay) {
+        errorOverlay.style.display = 'none';
       }
     }
   </script>
