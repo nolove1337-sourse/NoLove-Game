@@ -1,1 +1,1 @@
-web: gunicorn -k eventlet -w 1 --log-level debug nolove_server_8000:app 
+web: gunicorn -k eventlet -w 1 --log-level debug --timeout 120 nolove_server_8000:app 
