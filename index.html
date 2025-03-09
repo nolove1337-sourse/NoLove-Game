@@ -603,114 +603,206 @@
     if (isDemoMode) {
       // Имитация socket в демо-режиме
       socket = {
+        callbacks: {},
         on: function(event, callback) {
-          console.log('Регистрация события:', event);
-          
-          // Сохраняем callback для использования в emit
-          if (!this.callbacks) this.callbacks = {};
-          this.callbacks[event] = callback;
-          
-          // Имитируем некоторые события для демо-режима
-          if (event === 'connect') {
-            setTimeout(() => callback(), 1000);
-          }
-          
-          if (event === 'init_state') {
-            setTimeout(() => {
-              callback({
-                recentGames: [1.5, 2.1, 1.2, 3.7, 1.9],
-                gameHistory: [
-                  {
-                    multiplier: 2.4,
-                    players: [
-                      { username: 'player1', bet: 100, didCashOut: true, cashOutMultiplier: 2.0 },
-                      { username: 'player2', bet: 200, didCashOut: false, cashOutMultiplier: 0 }
-                    ]
-                  },
-                  {
-                    multiplier: 1.8,
-                    players: [
-                      { username: 'player3', bet: 150, didCashOut: true, cashOutMultiplier: 1.5 }
-                    ]
-                  }
-                ],
-                isActive: false,
-                countdownActive: true,
-                timeToStart: 5,
-                players: []
-              });
-            }, 2000);
-          }
-          
-          if (event === 'countdown') {
-            let count = 5;
-            const interval = setInterval(() => {
-              callback({ timeToStart: count });
-              count--;
-              if (count < 0) clearInterval(interval);
-            }, 1000);
-          }
-          
-          if (event === 'game_started') {
-            setTimeout(() => callback({}), 6000);
-          }
-          
-          if (event === 'multiplier_update') {
-            let multiplier = 1.0;
-            const interval = setInterval(() => {
-              multiplier += 0.01;
-              callback({ multiplier: multiplier });
-              if (multiplier > 5 || Math.random() > 0.995) {
-                clearInterval(interval);
-                setTimeout(() => {
-                  if (socket.on.game_crashed) socket.on.game_crashed({ multiplier: multiplier });
-                }, 100);
-              }
-            }, 100);
-          }
-          
-          if (event === 'game_crashed') {
-            // Ничего не делаем, обработается выше
-          }
-          
-          if (event === 'player_registered') {
-            setTimeout(() => {
-              callback({
-                id: 'demo-player',
-                username: 'Demo Player',
-                balance: 1000
-              });
-            }, 500);
+          try {
+            console.log('Регистрация события:', event);
+            
+            // Сохраняем callback для использования в emit
+            if (!this.callbacks) this.callbacks = {};
+            this.callbacks[event] = callback;
+            
+            // Имитируем некоторые события для демо-режима
+            if (event === 'connect') {
+              setTimeout(() => callback(), 1000);
+            }
+            
+            if (event === 'init_state') {
+              setTimeout(() => {
+                callback({
+                  recentGames: [1.5, 2.1, 1.2, 3.7, 1.9],
+                  gameHistory: [
+                    {
+                      multiplier: 2.4,
+                      players: [
+                        { username: 'player1', bet: 100, didCashOut: true, cashOutMultiplier: 2.0 },
+                        { username: 'player2', bet: 200, didCashOut: false, cashOutMultiplier: 0 }
+                      ]
+                    },
+                    {
+                      multiplier: 1.8,
+                      players: [
+                        { username: 'player3', bet: 150, didCashOut: true, cashOutMultiplier: 1.5 }
+                      ]
+                    }
+                  ],
+                  isActive: false,
+                  countdownActive: true,
+                  timeToStart: 5,
+                  players: []
+                });
+              }, 2000);
+            }
+            
+            if (event === 'countdown') {
+              let count = 5;
+              const interval = setInterval(() => {
+                callback({ timeToStart: count });
+                count--;
+                if (count < 0) clearInterval(interval);
+              }, 1000);
+            }
+            
+            if (event === 'game_started') {
+              setTimeout(() => callback({}), 6000);
+            }
+            
+            if (event === 'multiplier_update') {
+              let multiplier = 1.0;
+              const interval = setInterval(() => {
+                callback({ multiplier: multiplier });
+                multiplier += 0.01;
+                if (multiplier > 5 || Math.random() > 0.995) {
+                  clearInterval(interval);
+                  setTimeout(() => {
+                    if (this.callbacks['game_crashed']) this.callbacks['game_crashed']({ multiplier: multiplier });
+                  }, 100);
+                }
+              }, 100);
+            }
+          } catch (err) {
+            console.error('Ошибка при обработке события:', event, err);
           }
         },
-        emit: function(event, data) {
-          console.log('Событие отправлено:', event, data);
-          
-          // Обрабатываем некоторые события для демо-режима
-          if (event === 'register') {
-            if (this.callbacks && this.callbacks['player_registered']) {
-              setTimeout(() => {
-                this.callbacks['player_registered']({
-                  id: 'demo-player',
-                  username: data.username || 'Demo Player',
-                  balance: 1000
-                });
-              }, 500);
+        emit: function(event, data, callback) {
+          try {
+            console.log('Событие отправлено:', event, data);
+            
+            // Обрабатываем некоторые события для демо-режима
+            if (event === 'register_player') {
+              if (this.callbacks && this.callbacks['player_registered']) {
+                setTimeout(() => {
+                  this.callbacks['player_registered']({
+                    id: 'demo-player',
+                    username: data.username || 'Demo Player',
+                    balance: 1000
+                  });
+                  
+                  // Вызываем callback если он предоставлен
+                  if (callback && typeof callback === 'function') {
+                    callback({ success: true });
+                  }
+                  
+                  // Запускаем начальное состояние и обратный отсчет
+                  setTimeout(() => {
+                    if (this.callbacks['init_state']) {
+                      this.callbacks['init_state']({
+                        recentGames: [1.5, 2.1, 1.2, 3.7, 1.9],
+                        gameHistory: [
+                          {
+                            multiplier: 2.4,
+                            players: [
+                              { username: 'player1', bet: 100, didCashOut: true, cashOutMultiplier: 2.0 },
+                              { username: 'player2', bet: 200, didCashOut: false, cashOutMultiplier: 0 }
+                            ]
+                          }
+                        ],
+                        isActive: false,
+                        countdownActive: true,
+                        timeToStart: 5,
+                        players: []
+                      });
+                    }
+                    
+                    // Запускаем обратный отсчет
+                    if (this.callbacks['countdown_start']) {
+                      this.callbacks['countdown_start']({ timeLeft: 5 });
+                    }
+                    
+                    let count = 5;
+                    const interval = setInterval(() => {
+                      if (this.callbacks['countdown_update']) {
+                        this.callbacks['countdown_update']({ timeLeft: count });
+                      }
+                      count--;
+                      if (count < 0) {
+                        clearInterval(interval);
+                        
+                        // Начинаем игру
+                        if (this.callbacks['game_start']) {
+                          this.callbacks['game_start']({
+                            activePlayers: [
+                              { id: 'demo-player', username: data.username || 'Demo Player', bet: 100 }
+                            ]
+                          });
+                        }
+                        
+                        // Запускаем обновление множителя
+                        let multiplier = 1.0;
+                        const gameInterval = setInterval(() => {
+                          multiplier += 0.01;
+                          if (this.callbacks['multiplier_update']) {
+                            this.callbacks['multiplier_update']({ multiplier: multiplier });
+                          }
+                          
+                          if (multiplier > 3 || Math.random() > 0.995) {
+                            clearInterval(gameInterval);
+                            
+                            // Игра закончилась крахом
+                            if (this.callbacks['game_crash']) {
+                              this.callbacks['game_crash']({
+                                crashPoint: multiplier,
+                                gameResult: {
+                                  players: [
+                                    { username: data.username || 'Demo Player', bet: 100, didCashOut: false }
+                                  ]
+                                }
+                              });
+                            }
+                          }
+                        }, 100);
+                      }
+                    }, 1000);
+                  }, 2000);
+                }, 1000);
+              }
             }
-          }
-          
-          if (event === 'place_bet') {
-            // Запоминаем ставку игрока
-            this.lastBet = data.amount;
-          }
-          
-          if (event === 'cash_out') {
-            if (this.lastBet && this.callbacks && this.callbacks['player_cashed_out']) {
-              const currentMultiplier = parseFloat(document.querySelector('.multiplier-display').textContent) || 1.5;
-              this.callbacks['player_cashed_out']({
-                username: 'Demo Player',
-                amount: Math.floor(this.lastBet * currentMultiplier)
-              });
+            
+            if (event === 'place_bet') {
+              // Запоминаем ставку игрока
+              this.lastBet = data.bet;
+              
+              if (this.callbacks && this.callbacks['bet_confirmed']) {
+                setTimeout(() => {
+                  this.callbacks['bet_confirmed']({
+                    bet: data.bet,
+                    balance: 900
+                  });
+                  
+                  // Вызываем callback если он предоставлен
+                  if (callback && typeof callback === 'function') {
+                    callback({ success: true });
+                  }
+                }, 500);
+              }
+            }
+            
+            if (event === 'cash_out') {
+              if (this.lastBet && this.callbacks && this.callbacks['cash_out_confirmed']) {
+                const currentMultiplier = parseFloat(document.querySelector('.multiplier-display').textContent) || 1.5;
+                const winnings = Math.floor(this.lastBet * currentMultiplier);
+                
+                this.callbacks['cash_out_confirmed']({
+                  multiplier: currentMultiplier,
+                  winnings: winnings,
+                  balance: 1000 + winnings - this.lastBet
+                });
+              }
+            }
+          } catch (err) {
+            console.error('Ошибка при отправке события:', event, err);
+            if (callback && typeof callback === 'function') {
+              callback({ error: 'Произошла ошибка: ' + err.message });
             }
           }
         }
