@@ -670,11 +670,13 @@
     });
     
     // Доступный публичный тестовый сервер Socket.IO (на случай если пользователь настаивает на серверном режиме)
-    const publicTestServer = 'https://socket-io-tester.glitch.me';
+    const publicTestServer = 'https://socketio-chat-h9jt.herokuapp.com';
     
     // Серверы для игры NoLove (заменить на реальные когда они будут готовы)
     const serverOptions = [
-      publicTestServer
+      publicTestServer,
+      'https://socket-io-chat-iuml.onrender.com',
+      'https://socketio-whiteboard-zmx9.herokuapp.com'
     ];
     
     // Выключаем отладку по умолчанию
@@ -692,7 +694,8 @@
       if (window.location.hostname.includes('localhost')) {
         return 'http://localhost:8000';
       }
-      return serverOptions[0];
+      // Пробуем случайный сервер из списка доступных
+      return serverOptions[Math.floor(Math.random() * serverOptions.length)];
     }
     
     // Инициализируем серверный URL
@@ -753,10 +756,13 @@
             transports: ['websocket', 'polling'],
             upgrade: true,
             reconnection: true,
-            reconnectionAttempts: 3,
+            reconnectionAttempts: 5,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
-            timeout: 10000
+            timeout: 20000,
+            forceNew: true,
+            path: '/socket.io/',
+            autoConnect: true
           });
           
           // Добавляем индикаторы соединения
