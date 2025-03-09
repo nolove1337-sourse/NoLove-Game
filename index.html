@@ -621,46 +621,117 @@
   </div>
   
   <script>
-    // По умолчанию ВСЕГДА включаем демо-режим
-    let isDemoMode = true;
-    
-    // Отключаем опцию подключения к серверу, так как внешние серверы не поддерживают события нашей игры
-    document.querySelector('.mode-selector label').innerHTML = 
-      '<input type="checkbox" id="demoModeToggle" checked disabled>Игра работает в автономном режиме';
-    
-    // Создаем индикатор статуса соединения
-    const statusIndicator = document.createElement('div');
-    statusIndicator.style.cssText = 'position: fixed; bottom: 50px; right: 20px; font-size: 12px; color: #4CAF50;';
-    statusIndicator.textContent = 'Статус: подключение...';
-    document.body.appendChild(statusIndicator);
-    
-    // Отключаем обработчик смены режима, так как всегда будем использовать встроенный сервер
-    document.getElementById('demoModeToggle').addEventListener('change', function(e) {
-      e.preventDefault();
-      return false;
-    });
-    
-    // Оптимизированный встроенный сервер
+    // Конфигурация подключения к серверу
+    const SERVER_CONFIG = {
+      // В локальной сети - подключение к нашему IP
+      // При публикации в интернете - заменить на реальный адрес сервера
+      url: window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://' + window.location.hostname,
+      options: {
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+        autoConnect: true,
+        transports: ['websocket', 'polling']
+      }
+    };
+
+    // Автоматическое подключение к серверу или резервный демо-режим
     let socket;
+    let isDemoMode = false;
+
+    try {
+      // Обновляем интерфейс при попытке подключения
+      document.querySelector('.mode-selector label').innerHTML = 
+        '<input type="checkbox" id="demoModeToggle" disabled>Подключение к серверу...';
+      
+      // Создаем индикатор статуса соединения
+      const statusIndicator = document.createElement('div');
+      statusIndicator.style.cssText = 'position: fixed; bottom: 50px; right: 20px; font-size: 12px; color: #FFA500;';
+      statusIndicator.textContent = 'Статус: подключение...';
+      statusIndicator.id = 'connectionStatus';
+      document.body.appendChild(statusIndicator);
+      
+      // Пытаемся подключиться к серверу
+      console.log('[CONNECTION] Попытка подключения к серверу:', SERVER_CONFIG.url);
+      socket = io(SERVER_CONFIG.url, SERVER_CONFIG.options);
+      
+      // Обработка успешного подключения
+      socket.on('connect', () => {
+        console.log('[CONNECTION] Соединение с сервером установлено!');
+        document.querySelector('.mode-selector label').innerHTML = 
+          '<input type="checkbox" id="demoModeToggle" disabled>Подключено к серверу';
+        
+        const statusIndicator = document.getElementById('connectionStatus');
+        if (statusIndicator) {
+          statusIndicator.textContent = 'Статус: подключено';
+          statusIndicator.style.color = '#4CAF50';
+        }
+        
+        showNotification('Подключение к серверу установлено!', false);
+      });
+      
+      // Обработка ошибок соединения
+      socket.on('connect_error', (error) => {
+        console.error('[CONNECTION] Ошибка подключения к серверу:', error);
+        
+        // Если не удалось подключиться к серверу после нескольких попыток,
+        // автоматически переключаемся в демо-режим
+        if (!isDemoMode && !socket.connected) {
+          console.log('[CONNECTION] Переключение в автономный демо-режим...');
+          switchToDemoMode();
+        }
+      });
+      
+      // Обработка разрыва соединения
+      socket.on('disconnect', (reason) => {
+        console.log('[CONNECTION] Соединение с сервером потеряно:', reason);
+        
+        const statusIndicator = document.getElementById('connectionStatus');
+        if (statusIndicator) {
+          statusIndicator.textContent = 'Статус: переподключение...';
+          statusIndicator.style.color = '#FFA500';
+        }
+        
+        document.querySelector('.mode-selector label').innerHTML = 
+          '<input type="checkbox" id="demoModeToggle" disabled>Переподключение...';
+        
+        // Если соединение было разорвано и не восстановлено за 5 секунд,
+        // переключаемся в демо-режим
+        setTimeout(() => {
+          if (!socket.connected && !isDemoMode) {
+            console.log('[CONNECTION] Переключение в автономный демо-режим после разрыва соединения...');
+            switchToDemoMode();
+          }
+        }, 5000);
+      });
+    } catch (error) {
+      console.error('[CONNECTION] Ошибка инициализации сокета:', error);
+      switchToDemoMode();
+    }
     
-    // Конфигурация автономного режима
-    const AUTONOMOUS_MODE = true;
-    const LOCAL_SERVER = {
-      host: 'localhost',
-      port: 8080,
-      secure: false
-    };
+    // Функция переключения в демо-режим
+    function switchToDemoMode() {
+      isDemoMode = true;
+      
+      document.querySelector('.mode-selector label').innerHTML = 
+        '<input type="checkbox" id="demoModeToggle" checked disabled>Автономный режим (сервер недоступен)';
+      
+      const statusIndicator = document.getElementById('connectionStatus');
+      if (statusIndicator) {
+        statusIndicator.textContent = 'Статус: автономный режим';
+        statusIndicator.style.color = '#FFA500';
+      }
+      
+      // Создаем локальную эмуляцию сервера
+      socket = createLocalServer();
+      
+      showNotification('Сервер недоступен. Переключено в автономный режим', true);
+      addChatMessage('Система', 'Не удалось подключиться к серверу. Игра запущена в автономном режиме без мультиплеера.');
+    }
 
-    // Инициализация состояния игры
-    const gameState = {
-      isActive: false,
-      currentMultiplier: 1.0,
-      players: new Map(),
-      history: [],
-      recentGames: []
-    };
-
-    // Создаем надежный локальный сервер
+    // Функция создания локального сервера (оставляем для резервного режима)
     function createLocalServer() {
       return {
         callbacks: {},
@@ -871,30 +942,14 @@
       };
     }
 
-    // Инициализация соединения
-    function initializeConnection() {
-      if (AUTONOMOUS_MODE) {
-        socket = createLocalServer();
-        console.log('[AUTONOMOUS MODE] Локальный сервер создан');
-      } else {
-        // Оставляем старую логику для совместимости
-        // ... existing connection code ...
-      }
-    }
-    
-    // Удаляем старую функцию показа ошибки соединения
-    function hideConnectionError() {
-      const errorOverlay = document.getElementById('connectionErrorOverlay');
-      if (errorOverlay) {
-        errorOverlay.style.display = 'none';
-        errorOverlay.remove();
-      }
-    }
-    
-    // Проверяем и удаляем существующий оверлей при загрузке страницы
-    window.addEventListener('DOMContentLoaded', () => {
-      hideConnectionError();
-    });
+    // Инициализация состояния игры
+    const gameState = {
+      isActive: false,
+      currentMultiplier: 1.0,
+      players: new Map(),
+      history: [],
+      recentGames: []
+    };
     
     // Элементы DOM
     const usernameModal = document.getElementById('usernameModal');

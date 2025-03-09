@@ -2,13 +2,32 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+// Настройка HTTP заголовков
+app.use((req, res, next) => {
+  res.header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.header('Pragma', 'no-cache');
+  res.header('Expires', '0');
+  next();
+});
 
 // Подключаем статические файлы
 app.use(express.static(path.join(__dirname, '/')));
+
+// Маршрут для главной страницы
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // Состояние игры
 let gameState = {
@@ -17,9 +36,12 @@ let gameState = {
   countdownActive: false,
   timeToStart: 5,
   players: [],
-  recentGames: [],
+  recentGames: [1.5, 2.1, 1.2, 3.7, 1.9],
   gameHistory: []
 };
+
+// Хранение активных соединений
+let activeConnections = new Map();
 
 // Запуск таймера обратного отсчета
 function startCountdown() {
@@ -47,276 +69,367 @@ function startGame() {
   gameState.isActive = true;
   gameState.currentMultiplier = 1.00;
   
-  // Определяем точку краха (от 1.1 до 15)
-  const crashPoint = 1 + Math.pow(Math.random(), 0.65) * 14;
-  
-  console.log(`New game started. Crash point: ${crashPoint.toFixed(2)}x`);
-  
-  io.emit('game_start', { 
-    activePlayers: gameState.players.filter(p => p.inGame).map(p => ({ 
-      id: p.id, 
-      username: p.username, 
-      bet: p.bet 
-    })) 
+  // Обнуляем состояние игроков перед началом игры
+  gameState.players.forEach(player => {
+    player.didCashOut = false;
+    player.cashOutMultiplier = 0;
   });
   
-  // Интервал для обновления множителя
-  const gameInterval = setInterval(() => {
-    // Увеличиваем множитель
-    gameState.currentMultiplier += Math.random() * 0.05 + 0.01;
-    gameState.currentMultiplier = parseFloat(gameState.currentMultiplier.toFixed(2));
+  // Отправляем событие начала игры
+  io.emit('game_start', { activePlayers: gameState.players });
+  
+  // Логирование начала игры
+  console.log(`[GAME] Игра началась. Активных игроков: ${gameState.players.length}`);
+  
+  // Запускаем обновление множителя
+  let gameInterval = setInterval(() => {
+    gameState.currentMultiplier += 0.01;
     
-    // Отправляем обновление клиентам
-    io.emit('multiplier_update', { multiplier: gameState.currentMultiplier });
+    // Округляем до 2 знаков после запятой
+    const roundedMultiplier = parseFloat(gameState.currentMultiplier.toFixed(2));
     
-    // Проверяем, не достигли ли точки краха
-    if (gameState.currentMultiplier >= crashPoint) {
+    // Отправляем обновление множителя
+    io.emit('multiplier_update', { multiplier: roundedMultiplier });
+    
+    // Проверяем авто-выводы
+    gameState.players.forEach(player => {
+      if (!player.didCashOut && player.autoCashout && roundedMultiplier >= player.autoCashout) {
+        playerCashOut(player.id, roundedMultiplier);
+      }
+    });
+    
+    // Рассчитываем вероятность краха
+    // Формула дает низкую вероятность в начале и повышает с ростом множителя
+    const crashProbability = Math.min((roundedMultiplier - 1) / 100, 0.05);
+    
+    if (Math.random() < crashProbability || roundedMultiplier >= 10) {
       clearInterval(gameInterval);
-      handleCrash(crashPoint);
+      handleCrash(roundedMultiplier);
     }
   }, 100);
 }
 
 // Обработка краха
 function handleCrash(crashPoint) {
+  // Округляем до 2 знаков после запятой
+  crashPoint = parseFloat(crashPoint.toFixed(2));
+  
+  // Логирование краха
+  console.log(`[CRASH] Игра завершилась крахом при x${crashPoint}`);
+  
+  // Обновляем состояние игры
   gameState.isActive = false;
   
-  // Сохраняем результат игры
-  const gameResult = {
-    multiplier: crashPoint,
-    timestamp: Date.now(),
-    players: gameState.players.filter(p => p.inGame).map(p => ({
-      username: p.username,
-      bet: p.bet,
-      didCashOut: p.didCashOut,
-      cashOutMultiplier: p.cashOutMultiplier,
-      profit: p.didCashOut ? Math.floor(p.bet * p.cashOutMultiplier) - p.bet : -p.bet
-    }))
-  };
-  
-  gameState.recentGames.unshift(crashPoint.toFixed(2));
-  if (gameState.recentGames.length > 10) {
+  // Добавляем результат в историю
+  gameState.recentGames.unshift(crashPoint);
+  if (gameState.recentGames.length > 5) {
     gameState.recentGames.pop();
   }
   
+  // Сохраняем результаты игры
+  const gameResult = {
+    multiplier: crashPoint,
+    players: gameState.players.map(player => ({
+      username: player.username,
+      bet: player.bet,
+      didCashOut: player.didCashOut,
+      cashOutMultiplier: player.didCashOut ? player.cashOutMultiplier : 0
+    }))
+  };
+  
   gameState.gameHistory.unshift(gameResult);
-  if (gameState.gameHistory.length > 50) {
+  if (gameState.gameHistory.length > 10) {
     gameState.gameHistory.pop();
   }
   
-  // Уведомляем клиентов о крахе
-  io.emit('game_crash', { 
-    crashPoint: crashPoint.toFixed(2),
+  // Отправляем событие краха
+  io.emit('game_crash', {
+    crashPoint: crashPoint,
     gameResult: gameResult
   });
   
-  // Сбрасываем состояние игроков для следующей игры
-  gameState.players.forEach(player => {
-    if (player.inGame) {
-      player.inGame = false;
-      player.bet = 0;
-      player.didCashOut = false;
-      player.cashOutMultiplier = 0;
-    }
-  });
+  // Обновляем список активных игроков (удаляем тех, кто сделал ставку)
+  gameState.players = gameState.players.filter(player => !player.bet);
   
-  // Если есть готовые игроки, запускаем новый отсчет
+  // Запускаем новую игру через 3 секунды
   setTimeout(() => {
-    if (gameState.players.some(p => p.ready)) {
-      startCountdown();
-    }
+    startCountdown();
   }, 3000);
 }
 
-// Обработка подключений через Socket.IO
-io.on('connection', (socket) => {
-  console.log(`Новое подключение: ${socket.id}`);
+// Функция для обработки вывода игрока
+function playerCashOut(playerId, currentMultiplier) {
+  const playerIndex = gameState.players.findIndex(p => p.id === playerId);
   
-  // Отправляем текущее состояние игры новому клиенту
-  socket.emit('init_state', {
-    isActive: gameState.isActive,
-    currentMultiplier: gameState.currentMultiplier,
-    countdownActive: gameState.countdownActive,
-    timeToStart: gameState.timeToStart,
-    recentGames: gameState.recentGames,
-    players: gameState.players.filter(p => p.inGame).map(p => ({
-      id: p.id,
-      username: p.username,
-      bet: p.bet,
-      didCashOut: p.didCashOut
-    })),
-    gameHistory: gameState.gameHistory
-  });
+  if (playerIndex === -1) return false;
   
-  // Регистрация нового игрока
-  socket.on('register_player', (data, callback) => {
-    // Проверяем правильность данных
-    if (!data || !data.username || typeof data.username !== 'string' || data.username.trim() === '') {
-      console.log('Ошибка регистрации: некорректное имя пользователя');
-      if (callback) callback({ error: 'Некорректное имя пользователя' });
-      return;
-    }
-    
-    const username = data.username.trim();
-    
-    // Проверяем, не занято ли имя
-    const existingPlayer = gameState.players.find(p => p.username === username);
-    if (existingPlayer) {
-      console.log('Ошибка регистрации: имя пользователя уже занято', username);
-      if (callback) callback({ error: 'Имя пользователя уже занято' });
-      return;
-    }
-    
-    const initialBalance = 1000;
-    
-    // Добавляем игрока в список
-    gameState.players.push({
-      id: socket.id,
-      username: username,
-      balance: initialBalance,
-      bet: 0,
-      inGame: false,
-      didCashOut: false,
-      cashOutMultiplier: 0,
-      ready: false
-    });
-    
-    // Отвечаем с подтверждением
-    socket.emit('player_registered', {
-      id: socket.id,
-      username: username,
-      balance: initialBalance
-    });
-    
-    // Успешный ответ через колбэк
-    if (callback) callback({ success: true });
-    
-    console.log(`Игрок зарегистрирован: ${username} (${socket.id})`);
-  });
+  const player = gameState.players[playerIndex];
   
-  // Игрок делает ставку
-  socket.on('place_bet', (data, callback) => {
-    const player = gameState.players.find(p => p.id === socket.id);
-    
-    // Проверяем, найден ли игрок
-    if (!player) {
-      console.log('Ставка отклонена: игрок не найден, ID:', socket.id);
-      if (callback) callback({ error: 'Пользователь не зарегистрирован' });
-      return;
-    }
-    
-    const bet = parseInt(data.bet);
-    
-    // Проверяем корректность ставки
-    if (isNaN(bet) || bet <= 0) {
-      console.log('Ставка отклонена: некорректная сумма', bet);
-      if (callback) callback({ error: 'Неверная сумма ставки' });
-      return;
-    }
-    
-    // Проверяем достаточно ли средств
-    if (bet > player.balance) {
-      console.log('Ставка отклонена: недостаточно средств', bet, player.balance);
-      if (callback) callback({ error: 'Недостаточно средств' });
-      return;
-    }
-    
-    // Если игра активна или идет обратный отсчет, не принимаем ставки
-    if (gameState.isActive || gameState.countdownActive) {
-      console.log('Ставка отклонена: игра уже идет');
-      if (callback) callback({ error: 'Ставки на текущую игру закрыты' });
-      return;
-    }
-    
-    // Обновляем данные игрока
-    player.bet = bet;
-    player.balance -= bet;
-    player.inGame = true;
-    player.didCashOut = false;
-    player.cashOutMultiplier = 0;
-    player.ready = true;
-    
-    // Уведомляем клиента о принятой ставке
-    socket.emit('bet_confirmed', {
-      bet: player.bet,
-      balance: player.balance
-    });
-    
-    // Отправляем успешный ответ через колбэк
-    if (callback) callback({ success: true });
-    
-    console.log(`Ставка принята: ${player.username} поставил ${bet}`);
-    
-    // Уведомляем всех о новой ставке
-    io.emit('player_bet', {
-      id: player.id,
-      username: player.username,
-      bet: player.bet
-    });
-    
-    // Если это первая ставка, начинаем отсчет
-    if (!gameState.countdownActive && !gameState.isActive) {
-      startCountdown();
-    }
-  });
+  // Проверяем, может ли игрок вывести средства
+  if (player.didCashOut || !player.bet) return false;
   
-  // Игрок забирает выигрыш
-  socket.on('cash_out', () => {
-    if (!gameState.isActive) return;
-    
-    const player = gameState.players.find(p => p.id === socket.id);
-    if (!player || !player.inGame || player.didCashOut) return;
-    
-    // Фиксируем выигрыш
-    player.didCashOut = true;
-    player.cashOutMultiplier = gameState.currentMultiplier;
-    const winnings = Math.floor(player.bet * player.cashOutMultiplier);
-    player.balance += winnings;
-    
-    // Уведомляем игрока о выигрыше
+  // Отмечаем, что игрок вывел средства
+  player.didCashOut = true;
+  player.cashOutMultiplier = currentMultiplier;
+  
+  // Обновляем баланс игрока
+  const winnings = Math.floor(player.bet * currentMultiplier);
+  player.balance += winnings;
+  
+  // Получаем сокет игрока
+  const socket = activeConnections.get(playerId);
+  
+  if (socket) {
+    // Отправляем подтверждение вывода игроку
     socket.emit('cash_out_confirmed', {
-      multiplier: player.cashOutMultiplier,
+      multiplier: currentMultiplier,
       winnings: winnings,
       balance: player.balance
     });
     
-    // Уведомляем всех о выигрыше игрока
-    io.emit('player_cashed_out', {
+    // Уведомляем всех остальных игроков
+    socket.broadcast.emit('player_cashed_out', {
       id: player.id,
       username: player.username,
-      bet: player.bet,
-      multiplier: player.cashOutMultiplier,
+      multiplier: currentMultiplier,
       winnings: winnings
     });
-    
-    console.log(`Игрок ${player.username} вывел при множителе ${player.cashOutMultiplier}x и выиграл ${winnings}`);
+  }
+  
+  console.log(`[CASH OUT] Игрок ${player.username} вывел при x${currentMultiplier}. Выигрыш: ${winnings}`);
+  
+  return true;
+}
+
+// Подключение нового клиента
+io.on('connection', (socket) => {
+  console.log(`[CONNECT] Новое подключение: ${socket.id}`);
+  
+  // Отправляем текущее состояние игры
+  socket.emit('init_state', {
+    recentGames: gameState.recentGames,
+    gameHistory: gameState.gameHistory,
+    isActive: gameState.isActive,
+    countdownActive: gameState.countdownActive,
+    timeToStart: gameState.timeToStart,
+    currentMultiplier: gameState.currentMultiplier,
+    players: gameState.players
   });
   
-  // Авто-вывод
-  socket.on('set_auto_cashout', (data) => {
-    const player = gameState.players.find(p => p.id === socket.id);
-    if (!player) return;
-    
-    player.autoCashoutMultiplier = parseFloat(data.multiplier);
-    
-    socket.emit('auto_cashout_set', {
-      multiplier: player.autoCashoutMultiplier
-    });
+  // Регистрация игрока
+  socket.on('register_player', (data, callback) => {
+    try {
+      // Проверка данных
+      if (!data.username || data.username.trim() === '') {
+        return callback && callback({ error: 'Имя пользователя не может быть пустым' });
+      }
+      
+      // Создаем игрока
+      const player = {
+        id: socket.id,
+        username: data.username.substring(0, 15), // Ограничиваем длину имени
+        balance: 1000,
+        bet: 0,
+        didCashOut: false,
+        cashOutMultiplier: 0,
+        autoCashout: 0
+      };
+      
+      // Добавляем игрока в список
+      gameState.players.push(player);
+      activeConnections.set(player.id, socket);
+      
+      // Отправляем подтверждение регистрации
+      socket.emit('player_registered', {
+        id: player.id,
+        username: player.username,
+        balance: player.balance
+      });
+      
+      // Уведомляем других игроков
+      socket.broadcast.emit('chat_message', {
+        username: 'Система',
+        message: `${player.username} присоединился к игре`
+      });
+      
+      // Отвечаем на callback
+      if (callback) callback({ success: true });
+      
+      console.log(`[REGISTER] Игрок зарегистрирован: ${player.username}`);
+      
+      // Если еще нет активной игры или обратного отсчета, начинаем новую игру
+      if (!gameState.isActive && !gameState.countdownActive) {
+        startCountdown();
+      }
+    } catch (error) {
+      console.error('[ERROR] Ошибка при регистрации игрока:', error);
+      if (callback) callback({ error: 'Ошибка при регистрации' });
+    }
   });
   
-  // Отключение игрока
+  // Размещение ставки
+  socket.on('place_bet', (data, callback) => {
+    try {
+      // Проверка данных
+      if (!data.bet || isNaN(data.bet) || data.bet <= 0) {
+        return callback && callback({ error: 'Некорректная ставка' });
+      }
+      
+      // Находим игрока
+      const playerIndex = gameState.players.findIndex(p => p.id === socket.id);
+      
+      if (playerIndex === -1) {
+        return callback && callback({ error: 'Пользователь не найден' });
+      }
+      
+      const player = gameState.players[playerIndex];
+      
+      // Проверяем, не идет ли уже игра
+      if (gameState.isActive) {
+        return callback && callback({ error: 'Невозможно сделать ставку во время активной игры' });
+      }
+      
+      // Проверяем достаточно ли средств
+      if (data.bet > player.balance) {
+        return callback && callback({ error: 'Недостаточно средств' });
+      }
+      
+      // Обновляем данные игрока
+      player.bet = parseInt(data.bet);
+      player.balance -= player.bet;
+      player.didCashOut = false;
+      player.cashOutMultiplier = 0;
+      
+      // Подтверждаем ставку
+      socket.emit('bet_confirmed', {
+        bet: player.bet,
+        balance: player.balance
+      });
+      
+      // Уведомляем других игроков
+      socket.broadcast.emit('player_bet', {
+        id: player.id,
+        username: player.username,
+        bet: player.bet
+      });
+      
+      console.log(`[BET] Игрок ${player.username} сделал ставку: ${player.bet}`);
+      
+      if (callback) callback({ success: true });
+    } catch (error) {
+      console.error('[ERROR] Ошибка при размещении ставки:', error);
+      if (callback) callback({ error: 'Ошибка при размещении ставки' });
+    }
+  });
+  
+  // Вывод средств
+  socket.on('cash_out', (data, callback) => {
+    try {
+      // Проверяем, идет ли игра
+      if (!gameState.isActive) {
+        return callback && callback({ error: 'Игра не активна' });
+      }
+      
+      // Находим игрока
+      const playerIndex = gameState.players.findIndex(p => p.id === socket.id);
+      
+      if (playerIndex === -1) {
+        return callback && callback({ error: 'Пользователь не найден' });
+      }
+      
+      const player = gameState.players[playerIndex];
+      
+      // Вызываем функцию вывода средств
+      const result = playerCashOut(player.id, gameState.currentMultiplier);
+      
+      if (callback) callback({ success: result });
+    } catch (error) {
+      console.error('[ERROR] Ошибка при выводе средств:', error);
+      if (callback) callback({ error: 'Ошибка при выводе средств' });
+    }
+  });
+  
+  // Настройка авто-вывода
+  socket.on('set_auto_cashout', (data, callback) => {
+    try {
+      if (!data.multiplier || isNaN(data.multiplier) || data.multiplier < 1) {
+        return callback && callback({ error: 'Некорректный множитель' });
+      }
+      
+      // Находим игрока
+      const playerIndex = gameState.players.findIndex(p => p.id === socket.id);
+      
+      if (playerIndex === -1) {
+        return callback && callback({ error: 'Пользователь не найден' });
+      }
+      
+      // Устанавливаем авто-вывод
+      gameState.players[playerIndex].autoCashout = parseFloat(data.multiplier);
+      
+      if (callback) callback({ success: true });
+    } catch (error) {
+      console.error('[ERROR] Ошибка при настройке авто-вывода:', error);
+      if (callback) callback({ error: 'Ошибка при настройке авто-вывода' });
+    }
+  });
+  
+  // Сообщение в чате
+  socket.on('chat_message', (data) => {
+    try {
+      // Находим игрока
+      const player = gameState.players.find(p => p.id === socket.id);
+      
+      if (!player) return;
+      
+      // Фильтруем и обрезаем сообщение
+      const message = (data.message || '').substring(0, 200).trim();
+      
+      if (message === '') return;
+      
+      // Отправляем сообщение всем
+      io.emit('chat_message', {
+        username: player.username,
+        message: message
+      });
+      
+      console.log(`[CHAT] ${player.username}: ${message}`);
+    } catch (error) {
+      console.error('[ERROR] Ошибка при отправке сообщения:', error);
+    }
+  });
+  
+  // Отключение клиента
   socket.on('disconnect', () => {
+    // Удаляем игрока из списка активных соединений
+    activeConnections.delete(socket.id);
+    
+    // Находим игрока
     const playerIndex = gameState.players.findIndex(p => p.id === socket.id);
+    
     if (playerIndex !== -1) {
       const player = gameState.players[playerIndex];
-      console.log(`Игрок отключился: ${player.username} (${socket.id})`);
-      gameState.players.splice(playerIndex, 1);
+      
+      // Если игрок не сделал ставку, удаляем его из списка
+      if (!gameState.isActive || !player.bet) {
+        gameState.players.splice(playerIndex, 1);
+      }
+      
+      // Уведомляем других игроков
+      socket.broadcast.emit('chat_message', {
+        username: 'Система',
+        message: `${player.username} покинул игру`
+      });
+      
+      console.log(`[DISCONNECT] Игрок отключился: ${player.username}`);
+    } else {
+      console.log(`[DISCONNECT] Соединение закрыто: ${socket.id}`);
     }
   });
 });
 
 // Запуск сервера
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8000;
 server.listen(PORT, () => {
-  console.log(`Сервер запущен на порту ${PORT}`);
+  console.log(`[SERVER] Сервер запущен на порту ${PORT}`);
+  console.log(`[SERVER] Откройте в браузере: http://localhost:${PORT}`);
 }); 
