@@ -1,1 +1,1 @@
-web: gunicorn -k eventlet nolove_server_8000:app 
+web: gunicorn -k geventwebsocket.gunicorn.workers.GeventWebSocketWorker -w 1 nolove_server_8000:app 
