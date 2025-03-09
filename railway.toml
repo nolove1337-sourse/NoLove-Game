@@ -3,10 +3,11 @@ builder = "nixpacks"
 buildCommand = "pip install -r requirements.txt"
 
 [deploy]
-startCommand = "python wsgi.py"
+startCommand = "gunicorn -k eventlet -w 1 --log-level debug nolove_server_8000:app"
 healthcheckPath = "/"
 healthcheckTimeout = 100
 restartPolicyType = "on_failure"
 
 [env]
-PYTHON_VERSION = "3.9.16" 
+PYTHON_VERSION = "3.9.16"
+PORT = "8000" 

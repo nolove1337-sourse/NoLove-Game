@@ -1,1 +1,1 @@
-web: python wsgi.py 
+web: gunicorn -k eventlet -w 1 --log-level debug nolove_server_8000:app 
