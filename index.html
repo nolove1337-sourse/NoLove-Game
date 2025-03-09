@@ -590,28 +590,154 @@
   </div>
   
   <script>
-    // Автоматически определяем URL сервера
-    const serverUrl = window.location.origin;
-    const socket = io(serverUrl, {
-      transports: ['websocket'],
-      upgrade: false
-    });
+    // DEMO MODE - без подключения к серверу
+    const isDemoMode = true;
     
-    // Добавляем индикатор соединения
-    socket.on('connect', () => {
-      console.log('Соединение с сервером установлено');
-      addChatMessage('Система', 'Соединение с сервером установлено');
-    });
+    // URL сервера (для будущего использования)
+    // const serverUrl = window.location.origin;
+    const serverUrl = 'https://your-backend-server.com'; // Здесь нужно указать реальный URL вашего сервера
     
-    socket.on('connect_error', (error) => {
-      console.error('Ошибка соединения:', error);
-      alert('Ошибка подключения к серверу. Перезагрузите страницу.');
-    });
+    // Создаем имитацию socket для демо-режима
+    let socket;
     
-    socket.on('disconnect', () => {
-      console.log('Соединение с сервером прервано');
-      addChatMessage('Система', 'Соединение с сервером прервано');
-    });
+    if (isDemoMode) {
+      // Имитация socket в демо-режиме
+      socket = {
+        on: function(event, callback) {
+          console.log('Регистрация события:', event);
+          
+          // Сохраняем callback для использования в emit
+          if (!this.callbacks) this.callbacks = {};
+          this.callbacks[event] = callback;
+          
+          // Имитируем некоторые события для демо-режима
+          if (event === 'connect') {
+            setTimeout(() => callback(), 1000);
+          }
+          
+          if (event === 'init_state') {
+            setTimeout(() => {
+              callback({
+                recentGames: [1.5, 2.1, 1.2, 3.7, 1.9],
+                gameHistory: [
+                  {
+                    multiplier: 2.4,
+                    players: [
+                      { username: 'player1', bet: 100, didCashOut: true, cashOutMultiplier: 2.0 },
+                      { username: 'player2', bet: 200, didCashOut: false, cashOutMultiplier: 0 }
+                    ]
+                  },
+                  {
+                    multiplier: 1.8,
+                    players: [
+                      { username: 'player3', bet: 150, didCashOut: true, cashOutMultiplier: 1.5 }
+                    ]
+                  }
+                ],
+                isActive: false,
+                countdownActive: true,
+                timeToStart: 5,
+                players: []
+              });
+            }, 2000);
+          }
+          
+          if (event === 'countdown') {
+            let count = 5;
+            const interval = setInterval(() => {
+              callback({ timeToStart: count });
+              count--;
+              if (count < 0) clearInterval(interval);
+            }, 1000);
+          }
+          
+          if (event === 'game_started') {
+            setTimeout(() => callback({}), 6000);
+          }
+          
+          if (event === 'multiplier_update') {
+            let multiplier = 1.0;
+            const interval = setInterval(() => {
+              multiplier += 0.01;
+              callback({ multiplier: multiplier });
+              if (multiplier > 5 || Math.random() > 0.995) {
+                clearInterval(interval);
+                setTimeout(() => {
+                  if (socket.on.game_crashed) socket.on.game_crashed({ multiplier: multiplier });
+                }, 100);
+              }
+            }, 100);
+          }
+          
+          if (event === 'game_crashed') {
+            // Ничего не делаем, обработается выше
+          }
+          
+          if (event === 'player_registered') {
+            setTimeout(() => {
+              callback({
+                id: 'demo-player',
+                username: 'Demo Player',
+                balance: 1000
+              });
+            }, 500);
+          }
+        },
+        emit: function(event, data) {
+          console.log('Событие отправлено:', event, data);
+          
+          // Обрабатываем некоторые события для демо-режима
+          if (event === 'register') {
+            if (this.callbacks && this.callbacks['player_registered']) {
+              setTimeout(() => {
+                this.callbacks['player_registered']({
+                  id: 'demo-player',
+                  username: data.username || 'Demo Player',
+                  balance: 1000
+                });
+              }, 500);
+            }
+          }
+          
+          if (event === 'place_bet') {
+            // Запоминаем ставку игрока
+            this.lastBet = data.amount;
+          }
+          
+          if (event === 'cash_out') {
+            if (this.lastBet && this.callbacks && this.callbacks['player_cashed_out']) {
+              const currentMultiplier = parseFloat(document.querySelector('.multiplier-display').textContent) || 1.5;
+              this.callbacks['player_cashed_out']({
+                username: 'Demo Player',
+                amount: Math.floor(this.lastBet * currentMultiplier)
+              });
+            }
+          }
+        }
+      };
+      
+      // Добавляем сообщение о демо-режиме
+      setTimeout(() => {
+        alert('Внимание! Игра работает в демо-режиме без подключения к серверу. Функциональность ограничена.');
+      }, 1000);
+    } else {
+      // Реальное подключение к Socket.IO (когда будет готов сервер)
+      socket = io(serverUrl, {
+        transports: ['websocket'],
+        upgrade: false
+      });
+      
+      // Добавляем индикатор соединения
+      socket.on('connect', () => {
+        console.log('Соединение с сервером установлено');
+        addChatMessage('Система', 'Соединение с сервером установлено');
+      });
+      
+      socket.on('connect_error', (error) => {
+        console.error('Ошибка соединения:', error);
+        alert('Ошибка подключения к серверу. Перезагрузите страницу.');
+      });
+    }
     
     // Элементы DOM
     const usernameModal = document.getElementById('usernameModal');
