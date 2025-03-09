@@ -1,0 +1,13 @@
+{
+  "build": {
+    "environment": {
+      "NODE_VERSION": "18"
+    },
+    "cache": {
+      "directories": [
+        "node_modules"
+      ],
+      "yarn": true
+    }
+  }
+} 

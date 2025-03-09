@@ -2,12 +2,16 @@
   "name": "nolove-game",
   "version": "1.0.0",
   "description": "NoLove Game",
-  "main": "nolove.html",
+  "private": true,
   "scripts": {
-    "start": "python -m http.server 8000",
-    "build": "echo 'No build required'"
+    "build": "npm install",
+    "start": "npx serve ."
   },
   "dependencies": {
-    "socket.io-client": "^4.4.1"
+    "socket.io-client": "^4.4.1",
+    "serve": "^14.2.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 } 
