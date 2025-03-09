@@ -13,8 +13,8 @@ import threading
 
 # Настройка Flask и Socket.IO
 app = Flask(__name__, static_folder='.')
-app.config['SECRET_KEY'] = 'secret!'
-CORS(app, resources={r"/*": {"origins": "*"}})
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
+CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', logger=True, engineio_logger=True)
 
 # Состояние игры
