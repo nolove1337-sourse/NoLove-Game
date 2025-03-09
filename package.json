@@ -4,14 +4,14 @@
   "description": "NoLove Game",
   "private": true,
   "scripts": {
-    "build": "npm install",
-    "start": "npx serve ."
+    "build": "echo 'No build required'",
+    "start": "npx serve"
   },
   "dependencies": {
     "socket.io-client": "^4.4.1",
     "serve": "^14.2.1"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "18.x"
   }
 } 

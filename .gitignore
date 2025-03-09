@@ -1,3 +1,31 @@
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Build
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Netlify
+.netlify/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -43,7 +71,4 @@ yarn.lock
 .env.local
 .env.development.local
 .env.test.local
-.env.production.local
-
-# Environment
-.env.*.local 
+.env.production.local 
