@@ -545,7 +545,6 @@
         <div class="recent-title">Предыдущие игры</div>
         <div id="recentGamesContainer">
           <!-- Предыдущие игры будут добавлены через JavaScript -->
-          <div class="recent-item">1.75x</div>
         </div>
       </div>
     </div>
@@ -657,9 +656,16 @@
     // Функция инициализации соединения
     function initializeConnection() {
       if (isDemoMode) {
+        // Очищаем интервалы, если они существуют
+        if (window.demoIntervals) {
+          window.demoIntervals.forEach(interval => clearInterval(interval));
+        }
+        window.demoIntervals = [];
+        
         // Имитация socket в демо-режиме
         socket = {
           callbacks: {},
+          gameActive: false,
           on: function(event, callback) {
             try {
               console.log('Регистрация события:', event);
@@ -693,38 +699,11 @@
                       }
                     ],
                     isActive: false,
-                    countdownActive: true,
+                    countdownActive: false,
                     timeToStart: 5,
                     players: []
                   });
                 }, 2000);
-              }
-              
-              if (event === 'countdown') {
-                let count = 5;
-                const interval = setInterval(() => {
-                  callback({ timeToStart: count });
-                  count--;
-                  if (count < 0) clearInterval(interval);
-                }, 1000);
-              }
-              
-              if (event === 'game_started') {
-                setTimeout(() => callback({}), 6000);
-              }
-              
-              if (event === 'multiplier_update') {
-                let multiplier = 1.0;
-                const interval = setInterval(() => {
-                  callback({ multiplier: multiplier });
-                  multiplier += 0.01;
-                  if (multiplier > 5 || Math.random() > 0.995) {
-                    clearInterval(interval);
-                    setTimeout(() => {
-                      if (this.callbacks['game_crashed']) this.callbacks['game_crashed']({ multiplier: multiplier });
-                    }, 100);
-                  }
-                }, 100);
               }
             } catch (err) {
               console.error('Ошибка при обработке события:', event, err);
@@ -734,10 +713,18 @@
             try {
               console.log('Событие отправлено:', event, data);
               
+              // Запрещаем выполнение событий, если игра уже активна
+              if (this.gameActive && event === 'register_player') {
+                return;
+              }
+              
               // Обрабатываем некоторые события для демо-режима
               if (event === 'register_player') {
                 if (this.callbacks && this.callbacks['player_registered']) {
+                  this.gameActive = true;
+                  
                   setTimeout(() => {
+                    // Регистрируем игрока
                     this.callbacks['player_registered']({
                       id: 'demo-player',
                       username: data.username || 'Demo Player',
@@ -749,7 +736,10 @@
                       callback({ success: true });
                     }
                     
-                    // Запускаем начальное состояние и обратный отсчет
+                    // Очищаем предыдущие игры в UI
+                    document.getElementById('recentGamesContainer').innerHTML = '';
+                    
+                    // Запускаем начальное состояние
                     setTimeout(() => {
                       if (this.callbacks['init_state']) {
                         this.callbacks['init_state']({
@@ -764,62 +754,15 @@
                             }
                           ],
                           isActive: false,
-                          countdownActive: true,
+                          countdownActive: false,
                           timeToStart: 5,
                           players: []
                         });
                       }
                       
-                      // Запускаем обратный отсчет
-                      if (this.callbacks['countdown_start']) {
-                        this.callbacks['countdown_start']({ timeLeft: 5 });
-                      }
-                      
-                      let count = 5;
-                      const interval = setInterval(() => {
-                        if (this.callbacks['countdown_update']) {
-                          this.callbacks['countdown_update']({ timeLeft: count });
-                        }
-                        count--;
-                        if (count < 0) {
-                          clearInterval(interval);
-                          
-                          // Начинаем игру
-                          if (this.callbacks['game_start']) {
-                            this.callbacks['game_start']({
-                              activePlayers: [
-                                { id: 'demo-player', username: data.username || 'Demo Player', bet: 100 }
-                              ]
-                            });
-                          }
-                          
-                          // Запускаем обновление множителя
-                          let multiplier = 1.0;
-                          const gameInterval = setInterval(() => {
-                            multiplier += 0.01;
-                            if (this.callbacks['multiplier_update']) {
-                              this.callbacks['multiplier_update']({ multiplier: multiplier });
-                            }
-                            
-                            if (multiplier > 3 || Math.random() > 0.995) {
-                              clearInterval(gameInterval);
-                              
-                              // Игра закончилась крахом
-                              if (this.callbacks['game_crash']) {
-                                this.callbacks['game_crash']({
-                                  crashPoint: multiplier,
-                                  gameResult: {
-                                    players: [
-                                      { username: data.username || 'Demo Player', bet: 100, didCashOut: false }
-                                    ]
-                                  }
-                                });
-                              }
-                            }
-                          }, 100);
-                        }
-                      }, 1000);
-                    }, 2000);
+                      // Запускаем обратный отсчет через 2 секунды
+                      setTimeout(() => this.startNewRound(), 2000);
+                    }, 1000);
                   }, 1000);
                 }
               }
@@ -861,6 +804,66 @@
                 callback({ error: 'Произошла ошибка: ' + err.message });
               }
             }
+          },
+          // Метод для запуска нового раунда
+          startNewRound: function() {
+            if (this.callbacks['countdown_start']) {
+              this.callbacks['countdown_start']({ timeLeft: 5 });
+            }
+            
+            // Запускаем обратный отсчет
+            let count = 5;
+            const countdownInterval = setInterval(() => {
+              if (this.callbacks['countdown_update']) {
+                this.callbacks['countdown_update']({ timeLeft: count });
+              }
+              count--;
+              if (count < 0) {
+                clearInterval(countdownInterval);
+                
+                // Начинаем игру после завершения обратного отсчета
+                if (this.callbacks['game_start']) {
+                  this.callbacks['game_start']({
+                    activePlayers: [
+                      { id: 'demo-player', username: 'Demo Player', bet: 100 }
+                    ]
+                  });
+                }
+                
+                // Запускаем обновление множителя
+                let multiplier = 1.0;
+                const gameInterval = setInterval(() => {
+                  multiplier += 0.01;
+                  if (this.callbacks['multiplier_update']) {
+                    this.callbacks['multiplier_update']({ multiplier: parseFloat(multiplier.toFixed(2)) });
+                  }
+                  
+                  if (multiplier > 3 || Math.random() > 0.995) {
+                    clearInterval(gameInterval);
+                    
+                    // Округляем значение для вывода
+                    const crashPoint = parseFloat(multiplier.toFixed(2));
+                    
+                    // Игра закончилась крахом
+                    if (this.callbacks['game_crash']) {
+                      this.callbacks['game_crash']({
+                        crashPoint: crashPoint,
+                        gameResult: {
+                          players: [
+                            { username: 'Demo Player', bet: 100, didCashOut: false }
+                          ]
+                        }
+                      });
+                    }
+                    
+                    // Запускаем новый раунд через 3 секунды
+                    setTimeout(() => this.startNewRound(), 3000);
+                  }
+                }, 100);
+                window.demoIntervals.push(gameInterval);
+              }
+            }, 1000);
+            window.demoIntervals.push(countdownInterval);
           }
         };
         
