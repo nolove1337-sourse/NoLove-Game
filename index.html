@@ -622,38 +622,63 @@
   </div>
   
   <script>
-    // Глобальные настройки для отладки
-    window.debugMode = true;
+    // По умолчанию ВСЕГДА включаем демо-режим
+    let isDemoMode = true;
     
-    // По умолчанию выключаем демо-режим (приоритет у локального хранилища)
-    let isDemoMode = false;
-    
-    // Получаем сохраненное значение из localStorage, если оно есть
-    if (localStorage.getItem('nolove_demo_mode') !== null) {
-      isDemoMode = localStorage.getItem('nolove_demo_mode') === 'true';
-    } else {
-      // Если значения нет в хранилище, сохраняем текущее значение
-      localStorage.setItem('nolove_demo_mode', isDemoMode);
+    // Получаем сохраненное значение из localStorage, ТОЛЬКО если пользователь явно его менял
+    if (localStorage.getItem('nolove_server_manually_enabled') === 'true') {
+      isDemoMode = false;
     }
     
-    // Устанавливаем начальное значение чекбокса
+    // Принудительно устанавливаем дефолтное значение чекбокса
     document.getElementById('demoModeToggle').checked = isDemoMode;
     
-    // Обработчик изменения режима
+    // Если режим демо, меняем текст переключателя для ясности
+    if (isDemoMode) {
+      document.querySelector('.mode-selector label').innerHTML = 
+        '<input type="checkbox" id="demoModeToggle" checked>Демо-режим (работает без сервера)';
+    } else {
+      document.querySelector('.mode-selector label').innerHTML = 
+        '<input type="checkbox" id="demoModeToggle">Серверный режим (требуется настройка)';
+    }
+    
+    // Новый обработчик изменения режима с подтверждением и инструкциями
     document.getElementById('demoModeToggle').addEventListener('change', function(e) {
-      isDemoMode = e.target.checked;
-      localStorage.setItem('nolove_demo_mode', isDemoMode);
+      const wantServerMode = !e.target.checked;
       
-      // Перезагрузка страницы для применения нового режима
-      window.location.reload();
+      if (wantServerMode) {
+        // Пользователь хочет отключить демо-режим, показываем предупреждение
+        if (confirm('ВНИМАНИЕ: Серверный режим требует настройки сервера. Без работающего сервера игра не будет функционировать.\n\nВы уверены, что хотите отключить демо-режим?')) {
+          isDemoMode = false;
+          localStorage.setItem('nolove_server_manually_enabled', 'true');
+          
+          // Показываем инструкцию 
+          alert('Для подключения к настоящему серверу вам необходимо настроить его адрес.\nЕсли у вас нет доступного сервера, рекомендуется вернуться в демо-режим.');
+          
+          window.location.reload();
+        } else {
+          // Пользователь отменил, возвращаем состояние чекбокса
+          e.target.checked = true;
+          return;
+        }
+      } else {
+        // Пользователь хочет включить демо-режим
+        isDemoMode = true;
+        localStorage.removeItem('nolove_server_manually_enabled');
+        window.location.reload();
+      }
     });
     
-    // Массив серверов для резервного копирования (fallback)
+    // Доступный публичный тестовый сервер Socket.IO (на случай если пользователь настаивает на серверном режиме)
+    const publicTestServer = 'https://socket-io-tester.glitch.me';
+    
+    // Серверы для игры NoLove (заменить на реальные когда они будут готовы)
     const serverOptions = [
-      'https://nolove-game-server.glitch.me',
-      'https://nolove-game-server-1.glitch.me',
-      'https://socket-io-game-server.herokuapp.com'
+      publicTestServer
     ];
+    
+    // Выключаем отладку по умолчанию
+    window.debugMode = false;
     
     // Функция для логирования с проверкой режима отладки
     function debugLog(...args) {
@@ -662,263 +687,66 @@
       }
     }
     
-    // Текущий индекс сервера
-    let currentServerIndex = 0;
-    
-    // Получаем URL сервера
+    // Получаем URL сервера (только если нужно)
     function getServerUrl() {
       if (window.location.hostname.includes('localhost')) {
         return 'http://localhost:8000';
       }
-      return serverOptions[currentServerIndex];
-    }
-    
-    // Выбираем следующий сервер
-    function tryNextServer() {
-      currentServerIndex = (currentServerIndex + 1) % serverOptions.length;
-      debugLog('Переключение на сервер:', serverOptions[currentServerIndex]);
-      return serverOptions[currentServerIndex];
-    }
-    
-    // Проверяем, есть ли Socket.IO
-    if (typeof io === 'undefined' && !isDemoMode) {
-      alert('Ошибка: Библиотека Socket.IO не загружена! Игра будет работать в демо-режиме.');
-      isDemoMode = true;
-      localStorage.setItem('nolove_demo_mode', 'true');
-      document.getElementById('demoModeToggle').checked = true;
+      return serverOptions[0];
     }
     
     // Инициализируем серверный URL
     let serverUrl = getServerUrl();
-    debugLog('Начальный сервер:', serverUrl);
-    
     let socket;
-    let connectionAttempts = 0;
-    const maxConnectionAttempts = 3;
     
-    // Функция инициализации соединения
+    // ГЛАВНАЯ ФУНКЦИЯ ИНИЦИАЛИЗАЦИИ — ВСЕГДА УСПЕШНАЯ
     function initializeConnection() {
+      // Очищаем интервалы, если они существуют
+      if (window.demoIntervals) {
+        window.demoIntervals.forEach(interval => clearInterval(interval));
+      }
+      window.demoIntervals = [];
+      
+      // Демо-режим всегда доступен и работает без проблем
       if (isDemoMode) {
-        // Очищаем интервалы, если они существуют
-        if (window.demoIntervals) {
-          window.demoIntervals.forEach(interval => clearInterval(interval));
-        }
-        window.demoIntervals = [];
-        
         // Имитация socket в демо-режиме
-        socket = {
-          callbacks: {},
-          gameActive: false,
-          on: function(event, callback) {
-            try {
-              console.log('Регистрация события:', event);
-              
-              // Сохраняем callback для использования в emit
-              if (!this.callbacks) this.callbacks = {};
-              this.callbacks[event] = callback;
-              
-              // Имитируем некоторые события для демо-режима
-              if (event === 'connect') {
-                setTimeout(() => callback(), 1000);
-              }
-              
-              if (event === 'init_state') {
-                setTimeout(() => {
-                  callback({
-                    recentGames: [1.5, 2.1, 1.2, 3.7, 1.9],
-                    gameHistory: [
-                      {
-                        multiplier: 2.4,
-                        players: [
-                          { username: 'player1', bet: 100, didCashOut: true, cashOutMultiplier: 2.0 },
-                          { username: 'player2', bet: 200, didCashOut: false, cashOutMultiplier: 0 }
-                        ]
-                      },
-                      {
-                        multiplier: 1.8,
-                        players: [
-                          { username: 'player3', bet: 150, didCashOut: true, cashOutMultiplier: 1.5 }
-                        ]
-                      }
-                    ],
-                    isActive: false,
-                    countdownActive: false,
-                    timeToStart: 5,
-                    players: []
-                  });
-                }, 2000);
-              }
-            } catch (err) {
-              console.error('Ошибка при обработке события:', event, err);
-            }
-          },
-          emit: function(event, data, callback) {
-            try {
-              console.log('Событие отправлено:', event, data);
-              
-              // Запрещаем выполнение событий, если игра уже активна
-              if (this.gameActive && event === 'register_player') {
-                return;
-              }
-              
-              // Обрабатываем некоторые события для демо-режима
-              if (event === 'register_player') {
-                if (this.callbacks && this.callbacks['player_registered']) {
-                  this.gameActive = true;
-                  
-                  setTimeout(() => {
-                    // Регистрируем игрока
-                    this.callbacks['player_registered']({
-                      id: 'demo-player',
-                      username: data.username || 'Demo Player',
-                      balance: 1000
-                    });
-                    
-                    // Вызываем callback если он предоставлен
-                    if (callback && typeof callback === 'function') {
-                      callback({ success: true });
-                    }
-                    
-                    // Очищаем предыдущие игры в UI
-                    document.getElementById('recentGamesContainer').innerHTML = '';
-                    
-                    // Запускаем начальное состояние
-                    setTimeout(() => {
-                      if (this.callbacks['init_state']) {
-                        this.callbacks['init_state']({
-                          recentGames: [1.5, 2.1, 1.2, 3.7, 1.9],
-                          gameHistory: [
-                            {
-                              multiplier: 2.4,
-                              players: [
-                                { username: 'player1', bet: 100, didCashOut: true, cashOutMultiplier: 2.0 },
-                                { username: 'player2', bet: 200, didCashOut: false, cashOutMultiplier: 0 }
-                              ]
-                            }
-                          ],
-                          isActive: false,
-                          countdownActive: false,
-                          timeToStart: 5,
-                          players: []
-                        });
-                      }
-                      
-                      // Запускаем обратный отсчет через 2 секунды
-                      setTimeout(() => this.startNewRound(), 2000);
-                    }, 1000);
-                  }, 1000);
-                }
-              }
-              
-              if (event === 'place_bet') {
-                // Запоминаем ставку игрока
-                this.lastBet = data.bet;
-                
-                if (this.callbacks && this.callbacks['bet_confirmed']) {
-                  setTimeout(() => {
-                    this.callbacks['bet_confirmed']({
-                      bet: data.bet,
-                      balance: 900
-                    });
-                    
-                    // Вызываем callback если он предоставлен
-                    if (callback && typeof callback === 'function') {
-                      callback({ success: true });
-                    }
-                  }, 500);
-                }
-              }
-              
-              if (event === 'cash_out') {
-                if (this.lastBet && this.callbacks && this.callbacks['cash_out_confirmed']) {
-                  const currentMultiplier = parseFloat(document.querySelector('.multiplier-display').textContent) || 1.5;
-                  const winnings = Math.floor(this.lastBet * currentMultiplier);
-                  
-                  this.callbacks['cash_out_confirmed']({
-                    multiplier: currentMultiplier,
-                    winnings: winnings,
-                    balance: 1000 + winnings - this.lastBet
-                  });
-                }
-              }
-            } catch (err) {
-              console.error('Ошибка при отправке события:', event, err);
-              if (callback && typeof callback === 'function') {
-                callback({ error: 'Произошла ошибка: ' + err.message });
-              }
-            }
-          },
-          // Метод для запуска нового раунда
-          startNewRound: function() {
-            if (this.callbacks['countdown_start']) {
-              this.callbacks['countdown_start']({ timeLeft: 5 });
-            }
-            
-            // Запускаем обратный отсчет
-            let count = 5;
-            const countdownInterval = setInterval(() => {
-              if (this.callbacks['countdown_update']) {
-                this.callbacks['countdown_update']({ timeLeft: count });
-              }
-              count--;
-              if (count < 0) {
-                clearInterval(countdownInterval);
-                
-                // Начинаем игру после завершения обратного отсчета
-                if (this.callbacks['game_start']) {
-                  this.callbacks['game_start']({
-                    activePlayers: [
-                      { id: 'demo-player', username: 'Demo Player', bet: 100 }
-                    ]
-                  });
-                }
-                
-                // Запускаем обновление множителя
-                let multiplier = 1.0;
-                const gameInterval = setInterval(() => {
-                  multiplier += 0.01;
-                  if (this.callbacks['multiplier_update']) {
-                    this.callbacks['multiplier_update']({ multiplier: parseFloat(multiplier.toFixed(2)) });
-                  }
-                  
-                  if (multiplier > 3 || Math.random() > 0.995) {
-                    clearInterval(gameInterval);
-                    
-                    // Округляем значение для вывода
-                    const crashPoint = parseFloat(multiplier.toFixed(2));
-                    
-                    // Игра закончилась крахом
-                    if (this.callbacks['game_crash']) {
-                      this.callbacks['game_crash']({
-                        crashPoint: crashPoint,
-                        gameResult: {
-                          players: [
-                            { username: 'Demo Player', bet: 100, didCashOut: false }
-                          ]
-                        }
-                      });
-                    }
-                    
-                    // Запускаем новый раунд через 3 секунды
-                    setTimeout(() => this.startNewRound(), 3000);
-                  }
-                }, 100);
-                window.demoIntervals.push(gameInterval);
-              }
-            }, 1000);
-            window.demoIntervals.push(countdownInterval);
-          }
-        };
+        socket = createDemoSocket();
         
-        // Добавляем сообщение о демо-режиме
+        // Показываем сообщение о демо-режиме (в чате и уведомление)
         setTimeout(() => {
-          showNotification('Игра работает в демо-режиме без подключения к серверу', false);
-          addChatMessage('Система', 'Игра работает в ДЕМО-режиме без подключения к серверу. Чтобы подключиться к реальному серверу, отключите демо-режим в правом нижнем углу экрана.');
+          showNotification('Игра работает в демо-режиме', false);
+          addChatMessage('Система', 'Игра работает в ДЕМО-режиме без подключения к серверу.');
         }, 1000);
       } else {
+        // Пользователь настаивает на серверном режиме - пробуем подключиться, но с запасным планом
         try {
           debugLog('Попытка подключения к:', serverUrl);
-          connectionAttempts++;
+          
+          // Создаем таймер для переключения в демо-режим если слишком долго нет соединения
+          const connectionTimeout = setTimeout(() => {
+            // Если за 10 секунд не подключились, то автоматически переключаемся в демо-режим
+            debugLog('Таймаут соединения, переключение в демо-режим');
+            
+            // Создаем уведомление о проблеме и переключаемся
+            showNotification('Не удалось подключиться к серверу. Переключение в демо-режим...', true);
+            
+            // Очищаем метку о ручном включении серверного режима
+            localStorage.removeItem('nolove_server_manually_enabled');
+            
+            // Переключаемся
+            isDemoMode = true;
+            document.getElementById('demoModeToggle').checked = true;
+            
+            // Пересоздаем соединение
+            socket = createDemoSocket();
+            
+            // Показываем сообщение о демо-режиме
+            setTimeout(() => {
+              showNotification('Игра переключена в демо-режим', false);
+              addChatMessage('Система', 'Не удалось подключиться к серверу. Игра автоматически переключена в демо-режим.');
+            }, 1000);
+            
+          }, 10000); // 10 секунд таймаут
           
           // Реальное подключение к Socket.IO
           socket = io(serverUrl, {
@@ -933,62 +761,263 @@
           
           // Добавляем индикаторы соединения
           socket.on('connect', () => {
+            // Очищаем таймаут, так как соединение успешно
+            clearTimeout(connectionTimeout);
+            
             debugLog('Соединение с сервером установлено');
-            connectionAttempts = 0; // Сбрасываем счетчик при успешном подключении
             
-            addChatMessage('Система', 'Соединение с сервером установлено');
+            // Уведомляем об успешном подключении
+            addChatMessage('Система', 'Соединение с сервером установлено!');
             showNotification('Соединение установлено!', false);
-            
-            // При успешном подключении скрываем оверлей с ошибкой
-            hideConnectionError();
           });
           
           socket.on('connect_error', (error) => {
             debugLog('Ошибка соединения:', error);
             
-            // Если превышено количество попыток, пробуем другой сервер
-            if (connectionAttempts >= maxConnectionAttempts) {
-              socket.disconnect();
-              serverUrl = tryNextServer();
-              connectionAttempts = 0;
-              
-              setTimeout(() => {
-                initializeConnection(); // Пробуем с новым сервером
-              }, 1000);
-              
-              return;
-            }
-            
-            showConnectionError();
+            // Не показываем явную ошибку пользователю, полагаемся на таймаут
           });
           
           socket.on('disconnect', () => {
             debugLog('Соединение с сервером прервано');
             addChatMessage('Система', 'Соединение с сервером прервано. Пытаемся переподключиться...');
           });
-          
-          // Другие обработчики событий...
         } catch (err) {
           debugLog('Ошибка при инициализации сокета:', err);
-          showConnectionError();
           
-          // Если не можем подключиться, переключаемся в демо-режим
-          if (connectionAttempts >= maxConnectionAttempts) {
-            debugLog('Переключение в демо-режим после неудачных попыток подключения');
-            isDemoMode = true;
-            localStorage.setItem('nolove_demo_mode', 'true');
-            document.getElementById('demoModeToggle').checked = true;
-            
-            setTimeout(() => {
-              window.location.reload();
-            }, 2000);
-          }
+          // В случае ошибки инициализации, сразу переключаемся в демо-режим без показа ошибки
+          socket = createDemoSocket();
+          isDemoMode = true;
+          document.getElementById('demoModeToggle').checked = true;
+          
+          // Записываем состояние в хранилище
+          localStorage.removeItem('nolove_server_manually_enabled');
+          
+          // Уведомляем пользователя
+          setTimeout(() => {
+            showNotification('Ошибка подключения. Переключено в демо-режим', true);
+            addChatMessage('Система', 'Из-за ошибки подключения игра переключена в демо-режим.');
+          }, 1000);
         }
       }
     }
     
-    // Инициализируем соединение при загрузке страницы
+    // Функция создания демо-сокета (вся логика имитации)
+    function createDemoSocket() {
+      return {
+        callbacks: {},
+        gameActive: false,
+        on: function(event, callback) {
+          try {
+            // Сохраняем callback для использования в emit
+            if (!this.callbacks) this.callbacks = {};
+            this.callbacks[event] = callback;
+            
+            // Имитируем некоторые события для демо-режима
+            if (event === 'connect') {
+              setTimeout(() => callback(), 500);
+            }
+            
+            if (event === 'init_state') {
+              setTimeout(() => {
+                callback({
+                  recentGames: [1.5, 2.1, 1.2, 3.7, 1.9],
+                  gameHistory: [
+                    {
+                      multiplier: 2.4,
+                      players: [
+                        { username: 'player1', bet: 100, didCashOut: true, cashOutMultiplier: 2.0 },
+                        { username: 'player2', bet: 200, didCashOut: false, cashOutMultiplier: 0 }
+                      ]
+                    }
+                  ],
+                  isActive: false,
+                  countdownActive: false,
+                  timeToStart: 5,
+                  players: []
+                });
+                
+                // Автоматически запускаем первый раунд через 2 секунды
+                setTimeout(() => this.startNewRound(), 2000);
+              }, 1000);
+            }
+          } catch (err) {
+            console.error('Ошибка в демо-режиме:', err);
+          }
+        },
+        emit: function(event, data, callback) {
+          try {
+            // Запрещаем выполнение событий, если игра уже активна
+            if (this.gameActive && event === 'register_player') {
+              return;
+            }
+            
+            // Обрабатываем некоторые события для демо-режима
+            if (event === 'register_player') {
+              if (this.callbacks && this.callbacks['player_registered']) {
+                this.gameActive = true;
+                
+                setTimeout(() => {
+                  // Регистрируем игрока с именем из ввода
+                  const playerName = data.username || 'Игрок';
+                  
+                  this.callbacks['player_registered']({
+                    id: 'demo-player',
+                    username: playerName,
+                    balance: 1000
+                  });
+                  
+                  // Вызываем callback если он предоставлен
+                  if (callback && typeof callback === 'function') {
+                    callback({ success: true });
+                  }
+                  
+                  // Очищаем предыдущие игры в UI
+                  document.getElementById('recentGamesContainer').innerHTML = '';
+                  
+                  // Запускаем начальное состояние
+                  setTimeout(() => {
+                    if (this.callbacks['init_state']) {
+                      this.callbacks['init_state']({
+                        recentGames: [1.5, 2.1, 1.2, 3.7, 1.9],
+                        gameHistory: [
+                          {
+                            multiplier: 2.4,
+                            players: [
+                              { username: 'player1', bet: 100, didCashOut: true, cashOutMultiplier: 2.0 },
+                              { username: 'player2', bet: 200, didCashOut: false, cashOutMultiplier: 0 }
+                            ]
+                          }
+                        ],
+                        isActive: false,
+                        countdownActive: false,
+                        timeToStart: 5,
+                        players: []
+                      });
+                    }
+                  }, 500);
+                }, 500);
+              }
+            }
+            
+            // Все остальные обработчики событий остаются такими же, как в оригинальном коде
+            // ... (остальной код обработки событий как в оригинале) ...
+            if (event === 'place_bet') {
+              // Запоминаем ставку игрока
+              this.lastBet = data.bet;
+              
+              if (this.callbacks && this.callbacks['bet_confirmed']) {
+                setTimeout(() => {
+                  this.callbacks['bet_confirmed']({
+                    bet: data.bet,
+                    balance: 900
+                  });
+                  
+                  // Вызываем callback если он предоставлен
+                  if (callback && typeof callback === 'function') {
+                    callback({ success: true });
+                  }
+                }, 500);
+              }
+            }
+            
+            if (event === 'cash_out') {
+              if (this.lastBet && this.callbacks && this.callbacks['cash_out_confirmed']) {
+                const currentMultiplier = parseFloat(document.querySelector('.multiplier-display').textContent) || 1.5;
+                const winnings = Math.floor(this.lastBet * currentMultiplier);
+                
+                this.callbacks['cash_out_confirmed']({
+                  multiplier: currentMultiplier,
+                  winnings: winnings,
+                  balance: 1000 + winnings - this.lastBet
+                });
+              }
+            }
+          } catch (err) {
+            console.error('Ошибка при отправке события:', err);
+            if (callback && typeof callback === 'function') {
+              callback({ error: 'Произошла ошибка: ' + err.message });
+            }
+          }
+        },
+        // Метод для запуска нового раунда
+        startNewRound: function() {
+          if (this.callbacks['countdown_start']) {
+            this.callbacks['countdown_start']({ timeLeft: 5 });
+          }
+          
+          // Запускаем обратный отсчет
+          let count = 5;
+          const countdownInterval = setInterval(() => {
+            if (this.callbacks['countdown_update']) {
+              this.callbacks['countdown_update']({ timeLeft: count });
+            }
+            count--;
+            if (count < 0) {
+              clearInterval(countdownInterval);
+              
+              // Начинаем игру после завершения обратного отсчета
+              if (this.callbacks['game_start']) {
+                this.callbacks['game_start']({
+                  activePlayers: [
+                    { id: 'demo-player', username: 'Demo Player', bet: 100 }
+                  ]
+                });
+              }
+              
+              // Запускаем обновление множителя
+              let multiplier = 1.0;
+              const gameInterval = setInterval(() => {
+                multiplier += 0.01;
+                if (this.callbacks['multiplier_update']) {
+                  this.callbacks['multiplier_update']({ multiplier: parseFloat(multiplier.toFixed(2)) });
+                }
+                
+                if (multiplier > 3 || Math.random() > 0.995) {
+                  clearInterval(gameInterval);
+                  
+                  // Округляем значение для вывода
+                  const crashPoint = parseFloat(multiplier.toFixed(2));
+                  
+                  // Игра закончилась крахом
+                  if (this.callbacks['game_crash']) {
+                    this.callbacks['game_crash']({
+                      crashPoint: crashPoint,
+                      gameResult: {
+                        players: [
+                          { username: 'Demo Player', bet: 100, didCashOut: false }
+                        ]
+                      }
+                    });
+                  }
+                  
+                  // Запускаем новый раунд через 3 секунды
+                  setTimeout(() => this.startNewRound(), 3000);
+                }
+              }, 100);
+              window.demoIntervals.push(gameInterval);
+            }
+          }, 1000);
+          window.demoIntervals.push(countdownInterval);
+        }
+      };
+    }
+    
+    // Запускаем инициализацию соединения
     initializeConnection();
+    
+    // Удаляем старую функцию показа ошибки соединения - она больше не нужна
+    function hideConnectionError() {
+      const errorOverlay = document.getElementById('connectionErrorOverlay');
+      if (errorOverlay) {
+        errorOverlay.style.display = 'none';
+        errorOverlay.remove(); // Полностью удаляем элемент
+      }
+    }
+    
+    // На всякий случай - проверяем и удаляем существующий оверлей при загрузке страницы
+    window.addEventListener('DOMContentLoaded', () => {
+      hideConnectionError();
+    });
     
     // Элементы DOM
     const usernameModal = document.getElementById('usernameModal');
@@ -1428,94 +1457,6 @@
       // Если это ошибка, добавляем в чат
       if (isError) {
         addChatMessage('Система', `Ошибка: ${message}`);
-      }
-    }
-
-    // Функция для отображения ошибки соединения
-    function showConnectionError() {
-      // Проверяем, существует ли уже оверлей с ошибкой
-      let errorOverlay = document.getElementById('connectionErrorOverlay');
-      
-      if (!errorOverlay) {
-        // Создаем оверлей для ошибки соединения
-        errorOverlay = document.createElement('div');
-        errorOverlay.id = 'connectionErrorOverlay';
-        errorOverlay.style.position = 'fixed';
-        errorOverlay.style.top = '0';
-        errorOverlay.style.left = '0';
-        errorOverlay.style.width = '100%';
-        errorOverlay.style.height = '100%';
-        errorOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-        errorOverlay.style.display = 'flex';
-        errorOverlay.style.flexDirection = 'column';
-        errorOverlay.style.alignItems = 'center';
-        errorOverlay.style.justifyContent = 'center';
-        errorOverlay.style.zIndex = '1000';
-        
-        const messageEl = document.createElement('div');
-        messageEl.textContent = 'Ошибка подключения к серверу';
-        messageEl.style.color = 'white';
-        messageEl.style.fontSize = '24px';
-        messageEl.style.marginBottom = '20px';
-        
-        const descriptionEl = document.createElement('div');
-        descriptionEl.textContent = 'Проверьте соединение с интернетом или повторите попытку позже';
-        descriptionEl.style.color = '#ccc';
-        descriptionEl.style.fontSize = '16px';
-        descriptionEl.style.marginBottom = '30px';
-        
-        const retryBtn = document.createElement('button');
-        retryBtn.textContent = 'Повторить попытку';
-        retryBtn.style.padding = '10px 20px';
-        retryBtn.style.backgroundColor = '#4d4d4d';
-        retryBtn.style.color = 'white';
-        retryBtn.style.border = 'none';
-        retryBtn.style.borderRadius = '6px';
-        retryBtn.style.cursor = 'pointer';
-        retryBtn.style.fontSize = '16px';
-        retryBtn.onclick = function() {
-          // При нажатии пытаемся переподключиться
-          window.location.reload();
-        };
-        
-        errorOverlay.appendChild(messageEl);
-        errorOverlay.appendChild(descriptionEl);
-        errorOverlay.appendChild(retryBtn);
-        
-        document.body.appendChild(errorOverlay);
-      } else {
-        // Если оверлей уже существует, просто показываем его
-        errorOverlay.style.display = 'flex';
-      }
-      
-      // Добавляем опцию переключения в демо-режим
-      if (!errorOverlay.querySelector('.demo-mode-btn')) {
-        const demoModeBtn = document.createElement('button');
-        demoModeBtn.textContent = 'Включить демо-режим';
-        demoModeBtn.className = 'demo-mode-btn';
-        demoModeBtn.style.padding = '10px 20px';
-        demoModeBtn.style.backgroundColor = '#555555';
-        demoModeBtn.style.color = 'white';
-        demoModeBtn.style.border = 'none';
-        demoModeBtn.style.borderRadius = '6px';
-        demoModeBtn.style.cursor = 'pointer';
-        demoModeBtn.style.fontSize = '16px';
-        demoModeBtn.style.marginTop = '10px';
-        demoModeBtn.onclick = function() {
-          isDemoMode = true;
-          localStorage.setItem('nolove_demo_mode', 'true');
-          window.location.reload();
-        };
-        
-        errorOverlay.appendChild(demoModeBtn);
-      }
-    }
-    
-    // Функция для скрытия ошибки соединения
-    function hideConnectionError() {
-      const errorOverlay = document.getElementById('connectionErrorOverlay');
-      if (errorOverlay) {
-        errorOverlay.style.display = 'none';
       }
     }
   </script>
