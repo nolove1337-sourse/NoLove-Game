@@ -621,8 +621,8 @@
   </div>
   
   <script>
-    // По умолчанию включаем демо-режим
-    let isDemoMode = true;
+    // По умолчанию выключаем демо-режим
+    let isDemoMode = false;
     
     // Получаем сохраненное значение из localStorage, если оно есть
     if (localStorage.getItem('nolove_demo_mode') !== null) {
@@ -642,9 +642,9 @@
     });
     
     // Настраиваем подключение к серверу
-    // Можно использовать разные URL для локальной разработки и продакшена
+    // Используем публично доступный Socket.IO сервер для тестирования и демонстрации
     const localServerUrl = 'http://localhost:8000';  // Для локальной разработки
-    const remoteServerUrl = 'https://nolove-server.onrender.com';  // URL вашего серверного приложения
+    const remoteServerUrl = 'https://nolove-game-server.glitch.me';  // URL нашего серверного приложения
     
     // Выбираем URL сервера в зависимости от хоста
     const serverUrl = window.location.hostname.includes('localhost') 
