@@ -4,8 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NoLove</title>
-  <!-- Добавляем актуальную версию Socket.IO с CDN -->
-  <script src="https://cdn.socket.io/4.6.0/socket.io.min.js" integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+" crossorigin="anonymous"></script>
   <style>
     body {
       margin: 0;
@@ -101,12 +99,15 @@
       align-items: center;
       justify-content: space-between;
       margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 15px;
     }
     
     .bet-input-group {
       display: flex;
       align-items: center;
       gap: 10px;
+      flex-wrap: wrap;
     }
     
     .bet-label {
@@ -182,6 +183,7 @@
       background-color: #1a1a1a;
       border-radius: 10px;
       padding: 20px;
+      overflow-x: auto;
     }
     
     .history-title {
@@ -236,6 +238,7 @@
       padding: 3px 10px;
       border-radius: 15px;
       margin-left: 5px;
+      margin-bottom: 5px;
     }
     
     .footer {
@@ -244,6 +247,7 @@
       gap: 20px;
       margin-top: 20px;
       padding: 10px;
+      flex-wrap: wrap;
     }
     
     .footer a {
@@ -254,79 +258,7 @@
     .footer a:hover {
       color: white;
     }
-    
-    /* Новые стили для многопользовательской игры */
-    
-    .active-players {
-      background-color: #1a1a1a;
-      border-radius: 10px;
-      padding: 20px;
-      margin-bottom: 20px;
-    }
-    
-    .active-players-title {
-      font-size: 18px;
-      margin-bottom: 15px;
-      color: #9ca3af;
-    }
-    
-    .players-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    
-    .players-table th {
-      text-align: left;
-      padding: 10px;
-      color: #9ca3af;
-      border-bottom: 1px solid #2d2d2d;
-    }
-    
-    .players-table td {
-      padding: 10px;
-      border-bottom: 1px solid #2d2d2d;
-    }
-    
-    .chat-container {
-      background-color: #1a1a1a;
-      border-radius: 10px;
-      height: 200px;
-      margin-bottom: 20px;
-      display: flex;
-      flex-direction: column;
-    }
-    
-    .chat-messages {
-      flex: 1;
-      padding: 10px;
-      overflow-y: auto;
-    }
-    
-    .chat-input-container {
-      display: flex;
-      padding: 10px;
-      border-top: 1px solid #2d2d2d;
-    }
-    
-    .chat-input {
-      flex: 1;
-      background-color: #2d2d2d;
-      border: none;
-      color: white;
-      padding: 8px;
-      border-radius: 5px;
-    }
-    
-    .chat-send-btn {
-      background-color: #4d4d4d;
-      color: white;
-      border: none;
-      padding: 8px 15px;
-      border-radius: 5px;
-      margin-left: 10px;
-      cursor: pointer;
-    }
-    
+        
     .username-modal {
       position: fixed;
       top: 0;
@@ -345,6 +277,7 @@
       padding: 30px;
       border-radius: 10px;
       width: 300px;
+      max-width: 90%;
     }
     
     .username-form h2 {
@@ -467,37 +400,97 @@
       }
     }
     
-    /* Стили для системных сообщений */
-    .system-message {
-      background-color: rgba(0, 0, 0, 0.2);
-      padding: 5px 10px;
-      border-radius: 4px;
-      margin: 5px 0;
+    /* Медиа-запросы для мобильных устройств */
+    @media (max-width: 768px) {
+      .container {
+        padding: 10px;
+      }
+      
+      .header {
+        flex-direction: column;
+        gap: 10px;
+        align-items: center;
+      }
+      
+      .game-area {
+        height: 250px;
+      }
+      
+      .bet-controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .auto-cashout, .bet-input-group {
+        width: 100%;
+        justify-content: space-between;
+      }
+      
+      .main-buttons {
+        width: 100%;
+      }
+      
+      .play-btn, .cashout-btn {
+        flex: 1;
+        font-size: 16px;
+        padding: 15px;
+      }
+      
+      .mult-btn {
+        padding: 10px;
+        flex: 1;
+      }
+      
+      .bet-input, .cashout-input {
+        font-size: 16px;
+        padding: 12px;
+      }
+      
+      .recent-games {
+        position: static;
+        text-align: center;
+        margin-top: 10px;
+      }
+      
+      .multiplier-display {
+        font-size: 36px;
+      }
+      
+      .countdown {
+        font-size: 60px;
+      }
+      
+      .recent-title {
+        font-size: 12px;
+      }
+      
+      .tooltip .tooltip-text {
+        display: none;
+      }
     }
     
-    /* Стили для переключателя режимов */
-    .mode-selector {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background-color: rgba(40, 40, 40, 0.8);
-      padding: 10px;
-      border-radius: 8px;
-      z-index: 999;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-    }
-    
-    .mode-selector label {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: #ccc;
-      font-size: 14px;
-      cursor: pointer;
-    }
-    
-    .mode-selector input {
-      margin: 0;
+    @media (max-width: 480px) {
+      .bet-label {
+        display: block;
+        width: 100%;
+        margin-bottom: 5px;
+      }
+      
+      .multiplier-display {
+        font-size: 32px;
+      }
+      
+      .game-object {
+        font-size: 30px;
+      }
+      
+      .countdown {
+        font-size: 50px;
+      }
+      
+      .header {
+        margin-bottom: 10px;
+      }
     }
   </style>
 </head>
@@ -518,23 +511,6 @@
         <div class="balance">Баланс: <span id="balance">1000</span> ₽</div>
         <button class="logout-btn" id="logoutBtn">Выйти</button>
       </div>
-    </div>
-    
-    <!-- Активные игроки -->
-    <div class="active-players">
-      <div class="active-players-title">Активные игроки</div>
-      <table class="players-table">
-        <thead>
-          <tr>
-            <th>Игрок</th>
-            <th>Ставка</th>
-            <th>Статус</th>
-          </tr>
-        </thead>
-        <tbody id="activePlayers">
-          <!-- Список активных игроков будет добавлен через JavaScript -->
-        </tbody>
-      </table>
     </div>
     
     <div class="game-area">
@@ -573,17 +549,6 @@
       </div>
     </div>
     
-    <!-- Чат -->
-    <div class="chat-container">
-      <div class="chat-messages" id="chatMessages">
-        <!-- Сообщения чата будут добавлены через JavaScript -->
-      </div>
-      <div class="chat-input-container">
-        <input type="text" class="chat-input" id="chatInput" placeholder="Введите сообщение...">
-        <button class="chat-send-btn" id="chatSendBtn">Отправить</button>
-      </div>
-    </div>
-    
     <div class="history-section">
       <div class="history-title">История игр</div>
       <table class="history-table">
@@ -605,276 +570,13 @@
       <a href="#" class="tooltip">Правила
         <span class="tooltip-text">Дождитесь роста множителя и нажмите "Забрать" до краха</span>
       </a>
-      <a href="#" class="tooltip">Поддержка
-        <span class="tooltip-text">Техническая поддержка доступна 24/7</span>
-      </a>
-      <a href="#" class="tooltip">О нас
-        <span class="tooltip-text">NoLove - многопользовательская игра с растущим множителем</span>
+      <a href="#" class="tooltip">О игре
+        <span class="tooltip-text">NoLove - одиночная игра с растущим множителем</span>
       </a>
     </div>
   </div>
   
-  <div class="mode-selector">
-    <label>
-      <input type="checkbox" id="demoModeToggle" checked disabled>Игра работает в автономном режиме
-    </label>
-  </div>
-  
   <script>
-    // Принудительный автономный режим - всегда включен
-    const FORCE_OFFLINE_MODE = true;
-    
-    // Конфигурация подключения к серверу - не используется в автономном режиме
-    const SERVER_CONFIG = {
-      url: 'http://localhost:8000', // Неважно, так как мы не будем подключаться
-      options: {
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        timeout: 5000,
-        autoConnect: false // Не подключаться автоматически
-      }
-    };
-
-    // Переменные для игры
-    let socket;
-    let isDemoMode = true; // Всегда в демо-режиме
-    
-    // Инициализируем игру сразу в автономном режиме
-    function initGame() {
-      // Обновляем интерфейс для автономного режима
-      document.querySelector('.mode-selector label').innerHTML = 
-        '<input type="checkbox" id="demoModeToggle" checked disabled>Игра работает в автономном режиме';
-      
-      // Индикатор статуса автономного режима
-      const statusIndicator = document.createElement('div');
-      statusIndicator.style.cssText = 'position: fixed; bottom: 50px; right: 20px; font-size: 12px; color: #FFA500;';
-      statusIndicator.textContent = 'Статус: автономный режим';
-      statusIndicator.id = 'connectionStatus';
-      document.body.appendChild(statusIndicator);
-      
-      // Создаем локальную эмуляцию сервера
-      socket = createLocalServer();
-      
-      // Триггерим событие подключения для инициализации игры
-      setTimeout(() => {
-        if (socket.callbacks.connect) {
-          socket.callbacks.connect.forEach(callback => callback());
-        }
-        addChatMessage('Система', 'Игра запущена в автономном режиме. Играть можно без интернета!');
-      }, 100);
-    }
-
-    // Функция создания локального сервера
-    function createLocalServer() {
-      return {
-        callbacks: {},
-        connected: true,
-        gameActive: false,
-
-        // Система обработки событий
-        on: function(event, callback) {
-          try {
-            if (!this.callbacks[event]) {
-              this.callbacks[event] = [];
-            }
-            this.callbacks[event].push(callback);
-
-            // Симулируем мгновенное подключение
-            if (event === 'connect') {
-              setTimeout(() => {
-                callback();
-              }, 50);
-            }
-          } catch (err) {
-            console.error('Ошибка при регистрации события:', err);
-            this._handleError(err);
-          }
-        },
-
-        // Система отправки событий
-        emit: function(event, data, callback) {
-          try {
-            console.log('[EMIT]', event, data);
-            
-            switch(event) {
-              case 'register_player':
-                this._handlePlayerRegistration(data, callback);
-                break;
-              case 'place_bet':
-                this._handleBet(data, callback);
-                break;
-              case 'cash_out':
-                this._handleCashout(data, callback);
-                break;
-              default:
-                if (callback) callback({ success: true });
-            }
-          } catch (err) {
-            console.error('Ошибка при отправке события:', err);
-            this._handleError(err);
-            if (callback) callback({ error: err.message });
-          }
-        },
-
-        // Обработка регистрации игрока
-        _handlePlayerRegistration: function(data, callback) {
-          const player = {
-            id: 'player_' + Date.now(),
-            username: data.username,
-            balance: 1000,
-            bets: []
-          };
-
-          gameState.players.set(player.id, player);
-
-          if (this.callbacks['player_registered']) {
-            this.callbacks['player_registered'].forEach(cb => cb(player));
-          }
-
-          if (callback) callback({ success: true });
-
-          // Запускаем игру если она еще не запущена
-          if (!this.gameActive) {
-            this._startGameLoop();
-          }
-        },
-
-        // Обработка ставок
-        _handleBet: function(data, callback) {
-          const bet = {
-            amount: data.bet,
-            timestamp: Date.now(),
-            multiplier: gameState.currentMultiplier
-          };
-
-          if (this.callbacks['bet_confirmed']) {
-            this.callbacks['bet_confirmed'].forEach(cb => cb({
-              bet: bet.amount,
-              balance: 900 // Обновленный баланс
-            }));
-          }
-
-          if (callback) callback({ success: true });
-        },
-
-        // Обработка вывода средств
-        _handleCashout: function(data, callback) {
-          const currentMultiplier = gameState.currentMultiplier;
-          const winnings = Math.floor(data.bet * currentMultiplier);
-
-          if (this.callbacks['cash_out_confirmed']) {
-            this.callbacks['cash_out_confirmed'].forEach(cb => cb({
-              multiplier: currentMultiplier,
-              winnings: winnings,
-              balance: 1000 + winnings
-            }));
-          }
-
-          if (callback) callback({ success: true });
-        },
-
-        // Игровой цикл
-        _startGameLoop: function() {
-          this.gameActive = true;
-
-          const startNewRound = () => {
-            // Начинаем обратный отсчет
-            if (this.callbacks['countdown_start']) {
-              this.callbacks['countdown_start'].forEach(cb => cb({ timeLeft: 5 }));
-            }
-
-            let countdown = 5;
-            const countdownInterval = setInterval(() => {
-              countdown--;
-              
-              if (this.callbacks['countdown_update']) {
-                this.callbacks['countdown_update'].forEach(cb => cb({ timeLeft: countdown }));
-              }
-
-              if (countdown <= 0) {
-                clearInterval(countdownInterval);
-                this._startRound();
-              }
-            }, 1000);
-          };
-
-          // Запускаем первый раунд
-          startNewRound();
-        },
-
-        // Запуск раунда
-        _startRound: function() {
-          gameState.isActive = true;
-          gameState.currentMultiplier = 1.0;
-
-          if (this.callbacks['game_start']) {
-            this.callbacks['game_start'].forEach(cb => cb({
-              activePlayers: Array.from(gameState.players.values())
-            }));
-          }
-
-          const gameInterval = setInterval(() => {
-            gameState.currentMultiplier += 0.01;
-
-            if (this.callbacks['multiplier_update']) {
-              this.callbacks['multiplier_update'].forEach(cb => cb({
-                multiplier: parseFloat(gameState.currentMultiplier.toFixed(2))
-              }));
-            }
-
-            // Проверка на крах
-            const crashProbability = Math.min((gameState.currentMultiplier - 1) / 50, 0.1);
-            if (Math.random() < crashProbability || gameState.currentMultiplier > 10) {
-              clearInterval(gameInterval);
-              this._endRound();
-            }
-          }, 100);
-        },
-
-        // Завершение раунда
-        _endRound: function() {
-          gameState.isActive = false;
-          const crashPoint = parseFloat(gameState.currentMultiplier.toFixed(2));
-
-          // Добавляем в историю
-          gameState.recentGames.unshift(crashPoint);
-          if (gameState.recentGames.length > 5) {
-            gameState.recentGames.pop();
-          }
-
-          if (this.callbacks['game_crash']) {
-            this.callbacks['game_crash'].forEach(cb => cb({
-              crashPoint: crashPoint,
-              gameResult: {
-                players: Array.from(gameState.players.values())
-              }
-            }));
-          }
-
-          // Запускаем следующий раунд через 3 секунды
-          setTimeout(() => this._startGameLoop(), 3000);
-        },
-
-        // Обработка ошибок
-        _handleError: function(error) {
-          console.error('[SERVER ERROR]', error);
-          this._emitSystemMessage('Произошла ошибка: ' + error.message);
-        },
-
-        // Системные сообщения
-        _emitSystemMessage: function(message) {
-          if (this.callbacks['system_message']) {
-            this.callbacks['system_message'].forEach(cb => cb({
-              message: message,
-              timestamp: Date.now()
-            }));
-          }
-        }
-      };
-    }
-
     // Инициализация состояния игры
     const gameState = {
       isActive: false,
@@ -882,6 +584,176 @@
       players: new Map(),
       history: [],
       recentGames: []
+    };
+    
+    // Локальный "сервер" для обработки игровой логики
+    const gameEngine = {
+      callbacks: {},
+      gameActive: false,
+
+      // Обработка событий
+      on: function(event, callback) {
+        if (!this.callbacks[event]) {
+          this.callbacks[event] = [];
+        }
+        this.callbacks[event].push(callback);
+      },
+
+      // Отправка событий
+      emit: function(event, data, callback) {
+        console.log('[GAME]', event, data);
+        
+        switch(event) {
+          case 'register_player':
+            this._handlePlayerRegistration(data, callback);
+            break;
+          case 'place_bet':
+            this._handleBet(data, callback);
+            break;
+          case 'cash_out':
+            this._handleCashout(data, callback);
+            break;
+        }
+      },
+
+      // Обработка регистрации игрока
+      _handlePlayerRegistration: function(data, callback) {
+        const player = {
+          id: 'player_' + Date.now(),
+          username: data.username,
+          balance: 1000,
+          bets: []
+        };
+
+        gameState.players.set(player.id, player);
+
+        if (this.callbacks['player_registered']) {
+          this.callbacks['player_registered'].forEach(cb => cb(player));
+        }
+
+        if (callback) callback({ success: true });
+
+        // Запускаем игру если она еще не запущена
+        if (!this.gameActive) {
+          this._startGameLoop();
+        }
+      },
+
+      // Обработка ставок
+      _handleBet: function(data, callback) {
+        const bet = {
+          amount: data.bet,
+          timestamp: Date.now(),
+          multiplier: gameState.currentMultiplier
+        };
+
+        if (this.callbacks['bet_confirmed']) {
+          this.callbacks['bet_confirmed'].forEach(cb => cb({
+            bet: bet.amount,
+            balance: 900 // Обновленный баланс
+          }));
+        }
+
+        if (callback) callback({ success: true });
+      },
+
+      // Обработка вывода средств
+      _handleCashout: function(data, callback) {
+        const currentMultiplier = gameState.currentMultiplier;
+        const winnings = Math.floor(data.bet * currentMultiplier);
+
+        if (this.callbacks['cash_out_confirmed']) {
+          this.callbacks['cash_out_confirmed'].forEach(cb => cb({
+            multiplier: currentMultiplier,
+            winnings: winnings,
+            balance: 1000 + winnings
+          }));
+        }
+
+        if (callback) callback({ success: true });
+      },
+
+      // Игровой цикл
+      _startGameLoop: function() {
+        this.gameActive = true;
+
+        const startNewRound = () => {
+          // Начинаем обратный отсчет
+          if (this.callbacks['countdown_start']) {
+            this.callbacks['countdown_start'].forEach(cb => cb({ timeLeft: 5 }));
+          }
+
+          let countdown = 5;
+          const countdownInterval = setInterval(() => {
+            countdown--;
+            
+            if (this.callbacks['countdown_update']) {
+              this.callbacks['countdown_update'].forEach(cb => cb({ timeLeft: countdown }));
+            }
+
+            if (countdown <= 0) {
+              clearInterval(countdownInterval);
+              this._startRound();
+            }
+          }, 1000);
+        };
+
+        // Запускаем первый раунд
+        startNewRound();
+      },
+
+      // Запуск раунда
+      _startRound: function() {
+        gameState.isActive = true;
+        gameState.currentMultiplier = 1.0;
+
+        if (this.callbacks['game_start']) {
+          this.callbacks['game_start'].forEach(cb => cb({
+            activePlayers: Array.from(gameState.players.values())
+          }));
+        }
+
+        const gameInterval = setInterval(() => {
+          gameState.currentMultiplier += 0.01;
+
+          if (this.callbacks['multiplier_update']) {
+            this.callbacks['multiplier_update'].forEach(cb => cb({
+              multiplier: parseFloat(gameState.currentMultiplier.toFixed(2))
+            }));
+          }
+
+          // Проверка на крах
+          const crashProbability = Math.min((gameState.currentMultiplier - 1) / 50, 0.1);
+          if (Math.random() < crashProbability || gameState.currentMultiplier > 10) {
+            clearInterval(gameInterval);
+            this._endRound();
+          }
+        }, 100);
+      },
+
+      // Завершение раунда
+      _endRound: function() {
+        gameState.isActive = false;
+        const crashPoint = parseFloat(gameState.currentMultiplier.toFixed(2));
+
+        // Добавляем в историю
+        gameState.recentGames.unshift(crashPoint);
+        if (gameState.recentGames.length > 5) {
+          gameState.recentGames.pop();
+        }
+
+        if (this.callbacks['game_crash']) {
+          this.callbacks['game_crash'].forEach(cb => cb({
+            crashPoint: crashPoint,
+            gameResult: {
+              players: Array.from(gameState.players.values())
+            }
+          }));
+        }
+
+        // Запускаем следующий раунд через 3 секунды
+        setTimeout(() => this._startGameLoop(), 3000);
+      }
     };
     
     // Элементы DOM
@@ -898,14 +770,8 @@
     const cashoutBtn = document.getElementById('cashoutBtn');
     const historyTable = document.getElementById('historyTable');
     const countdownEl = document.getElementById('countdown');
-    const activePlayersTable = document.getElementById('activePlayers');
     const recentGamesContainer = document.getElementById('recentGamesContainer');
-    const chatMessages = document.getElementById('chatMessages');
-    const chatInput = document.getElementById('chatInput');
-    const chatSendBtn = document.getElementById('chatSendBtn');
-    const halfBtn = document.getElementById('halfBtn');
-    const doubleBtn = document.getElementById('doubleBtn');
-    const maxBtn = document.getElementById('maxBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
     
     // Состояние игры
     let player = {
@@ -915,6 +781,26 @@
       inGame: false
     };
     
+    // Инициализация игры
+    function initGame() {
+      // Проверяем есть ли сохраненное имя игрока
+      const savedName = localStorage.getItem('username');
+      if (savedName) {
+        // Автоматическая регистрация при перезагрузке страницы
+        gameEngine.emit('register_player', { username: savedName }, (response) => {
+          if (response && response.success) {
+            usernameModal.style.display = 'none';
+          }
+        });
+      }
+      
+      // Добавляем несколько начальных результатов
+      if (gameState.recentGames.length === 0) {
+        gameState.recentGames = [1.5, 2.1, 1.2, 3.7, 1.9];
+        updateRecentGames(gameState.recentGames);
+      }
+    }
+    
     // Обработчик отправки имени пользователя
     usernameSubmit.addEventListener('click', () => {
       const username = usernameInput.value.trim();
@@ -923,12 +809,15 @@
         return;
       }
       
-      // Анимируем кнопку, чтобы показать, что запрос отправляется
-      usernameSubmit.textContent = 'Подключение...';
+      // Анимируем кнопку
+      usernameSubmit.textContent = 'Загрузка...';
       usernameSubmit.disabled = true;
       
-      // Отправляем запрос на регистрацию
-      socket.emit('register_player', { username }, (response) => {
+      // Сохраняем имя в локальное хранилище
+      localStorage.setItem('username', username);
+      
+      // Регистрируем игрока
+      gameEngine.emit('register_player', { username }, (response) => {
         if (response && response.error) {
           alert('Ошибка: ' + response.error);
           usernameSubmit.textContent = 'Начать игру';
@@ -946,6 +835,14 @@
       if (e.key === 'Enter') {
         usernameSubmit.click();
       }
+    });
+    
+    // Обработчик кнопки выхода
+    logoutBtn.addEventListener('click', () => {
+      // Удаляем данные из локального хранилища
+      localStorage.removeItem('username');
+      // Перезагружаем страницу
+      location.reload();
     });
     
     // Обработчик для кнопок изменения ставки
@@ -990,11 +887,8 @@
         return;
       }
       
-      console.log('Отправка ставки:', { bet: betAmount });
-      
-      // Отправляем ставку на сервер
-      socket.emit('place_bet', { bet: betAmount }, (response) => {
-        // Проверяем ответ от сервера (колбэк)
+      // Отправляем ставку
+      gameEngine.emit('place_bet', { bet: betAmount }, (response) => {
         if (response && response.error) {
           showNotification(response.error, true);
         } else if (response && response.success) {
@@ -1005,71 +899,32 @@
       // Устанавливаем авто-вывод
       const autoCashoutValue = parseFloat(autoCashoutInput.value);
       if (!isNaN(autoCashoutValue) && autoCashoutValue > 1) {
-        socket.emit('set_auto_cashout', { multiplier: autoCashoutValue });
+        // Сохраняем значение для автоматической обработки
+        player.autoCashout = autoCashoutValue;
       }
     });
     
     // Обработчик кнопки забрать
     cashoutBtn.addEventListener('click', () => {
-      socket.emit('cash_out');
+      gameEngine.emit('cash_out', { bet: parseInt(betInput.value) });
     });
     
-    // Обработчик отправки сообщения в чат
-    chatSendBtn.addEventListener('click', () => {
-      const message = chatInput.value.trim();
-      if (message) {
-        socket.emit('chat_message', { message });
-        chatInput.value = '';
-      }
-    });
-    
-    chatInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        chatSendBtn.click();
-      }
-    });
-    
-    // События Socket.IO
+    // События игрового процесса
     
     // Регистрация игрока
-    socket.on('player_registered', (data) => {
+    gameEngine.on('player_registered', (data) => {
       player.id = data.id;
       player.username = data.username;
       player.balance = data.balance;
       
       // Обновляем UI
       balanceEl.textContent = player.balance;
-    });
-    
-    // Начальное состояние
-    socket.on('init_state', (data) => {
-      // Обновляем список предыдущих игр
-      updateRecentGames(data.recentGames);
       
-      // Добавляем историю игр
-      data.gameHistory.forEach(game => {
-        game.players.forEach(gamePlayer => {
-          addToHistory(gamePlayer.username, gamePlayer.bet, game.multiplier, gamePlayer.didCashOut ? Math.floor(gamePlayer.bet * gamePlayer.cashOutMultiplier) : 0);
-        });
-      });
-      
-      // Если игра активна, показываем текущий множитель
-      if (data.isActive) {
-        multiplierEl.textContent = `${data.currentMultiplier.toFixed(2)}x`;
-      }
-      
-      // Если идет обратный отсчет, показываем его
-      if (data.countdownActive) {
-        countdownEl.style.display = 'block';
-        countdownEl.textContent = data.timeToStart;
-      }
-      
-      // Обновляем список активных игроков
-      updateActivePlayers(data.players);
+      showNotification(`Добро пожаловать, ${player.username}!`);
     });
     
     // Начало обратного отсчета
-    socket.on('countdown_start', (data) => {
+    gameEngine.on('countdown_start', (data) => {
       countdownEl.style.display = 'block';
       countdownEl.textContent = data.timeLeft;
       
@@ -1080,12 +935,12 @@
     });
     
     // Обновление обратного отсчета
-    socket.on('countdown_update', (data) => {
+    gameEngine.on('countdown_update', (data) => {
       countdownEl.textContent = data.timeLeft;
     });
     
     // Начало игры
-    socket.on('game_start', (data) => {
+    gameEngine.on('game_start', (data) => {
       countdownEl.style.display = 'none';
       multiplierEl.style.color = 'white';
       gameObject.style.transform = 'translate(0, 100px)';
@@ -1096,16 +951,10 @@
         cashoutBtn.style.display = 'block';
         player.inGame = true;
       }
-      
-      // Обновляем список активных игроков
-      updateActivePlayers(data.activePlayers);
-      
-      // Добавляем сообщение в чат
-      addChatMessage('Система', 'Игра началась!');
     });
     
     // Обновление множителя
-    socket.on('multiplier_update', (data) => {
+    gameEngine.on('multiplier_update', (data) => {
       // Обновляем множитель
       multiplierEl.textContent = `${data.multiplier.toFixed(2)}x`;
       
@@ -1113,42 +962,23 @@
       const posY = 100 - (data.multiplier - 1) * 20;
       const posX = (data.multiplier - 1) * 10;
       gameObject.style.transform = `translate(${posX}px, ${posY}px)`;
+      
+      // Проверяем авто-вывод
+      if (player.inGame && player.autoCashout && data.multiplier >= player.autoCashout) {
+        gameEngine.emit('cash_out', { bet: parseInt(betInput.value) });
+      }
     });
     
     // Подтверждение ставки
-    socket.on('bet_confirmed', (data) => {
+    gameEngine.on('bet_confirmed', (data) => {
       player.balance = data.balance;
       balanceEl.textContent = player.balance;
       
-      // Добавляем сообщение в чат
-      addChatMessage('Система', `Ваша ставка ${data.bet} ₽ принята`);
-    });
-    
-    // Игрок сделал ставку
-    socket.on('player_bet', (data) => {
-      // Обновляем список активных игроков
-      const playerRow = document.querySelector(`tr[data-player-id="${data.id}"]`);
-      if (playerRow) {
-        playerRow.querySelector('.player-bet').textContent = `${data.bet} ₽`;
-        playerRow.querySelector('.player-status').textContent = 'В игре';
-      } else {
-        const row = document.createElement('tr');
-        row.setAttribute('data-player-id', data.id);
-        row.innerHTML = `
-          <td>${data.username}</td>
-          <td class="player-bet">${data.bet} ₽</td>
-          <td class="player-status">В игре</td>
-        `;
-        activePlayersTable.appendChild(row);
-      }
-      
-      if (data.id !== player.id) {
-        addChatMessage('Система', `${data.username} сделал ставку ${data.bet} ₽`);
-      }
+      showNotification(`Ваша ставка ${data.bet} ₽ принята`);
     });
     
     // Подтверждение вывода
-    socket.on('cash_out_confirmed', (data) => {
+    gameEngine.on('cash_out_confirmed', (data) => {
       player.balance = data.balance;
       balanceEl.textContent = player.balance;
       player.inGame = false;
@@ -1166,12 +996,11 @@
         cashOutAnimation.remove();
       }, 1500);
       
-      // Добавляем сообщение в чат
-      addChatMessage('Система', `Вы вывели при ${data.multiplier.toFixed(2)}x и выиграли ${data.winnings} ₽`);
+      showNotification(`Вы вывели при ${data.multiplier.toFixed(2)}x и выиграли ${data.winnings} ₽`);
     });
     
     // Игра закончилась крахом
-    socket.on('game_crash', (data) => {
+    gameEngine.on('game_crash', (data) => {
       // Обновляем множитель
       multiplierEl.style.color = '#707070';
       multiplierEl.textContent = `${data.crashPoint}x`;
@@ -1197,37 +1026,14 @@
       autoCashoutInput.disabled = false;
       player.inGame = false;
       
-      // Добавляем сообщение в чат
-      addChatMessage('Система', `Игра завершилась крахом при ${data.crashPoint}x`);
-    });
-    
-    // Сообщение об ошибке
-    socket.on('error', (data) => {
-      showNotification(data.message, true);
-    });
-    
-    // Сообщение в чате
-    socket.on('chat_message', (data) => {
-      addChatMessage(data.username, data.message);
+      if (data.crashPoint < 1.2) {
+        showNotification(`Крах! x${data.crashPoint} - очень низкий множитель`, true);
+      } else {
+        showNotification(`Крах при x${data.crashPoint}`);
+      }
     });
     
     // Функции-помощники
-    
-    // Обновление списка активных игроков
-    function updateActivePlayers(players) {
-      activePlayersTable.innerHTML = '';
-      
-      players.forEach(p => {
-        const row = document.createElement('tr');
-        row.setAttribute('data-player-id', p.id);
-        row.innerHTML = `
-          <td>${p.username}</td>
-          <td class="player-bet">${p.bet} ₽</td>
-          <td class="player-status">${p.didCashOut ? `Вывел при ${p.cashOutMultiplier.toFixed(2)}x` : 'В игре'}</td>
-        `;
-        activePlayersTable.appendChild(row);
-      });
-    }
     
     // Обновление списка недавних игр
     function updateRecentGames(games) {
@@ -1270,24 +1076,8 @@
         recentGamesContainer.removeChild(recentGamesContainer.lastChild);
       }
     }
-    
-    // Добавление сообщения в чат
-    function addChatMessage(username, message) {
-      const messageEl = document.createElement('div');
-      
-      // Если это системное сообщение, добавим специальный стиль
-      if (username === 'Система') {
-        messageEl.className = 'system-message';
-      }
-      
-      messageEl.innerHTML = `<strong>${username}:</strong> ${message}`;
-      chatMessages.appendChild(messageEl);
-      
-      // Прокручиваем чат вниз
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
 
-    // Функция для красивого отображения ошибок и сообщений
+    // Функция для красивого отображения уведомлений
     function showNotification(message, isError = false) {
       // Создаем элемент уведомления
       const notification = document.createElement('div');
@@ -1304,23 +1094,10 @@
           document.body.removeChild(notification);
         }, 500);
       }, 5000);
-      
-      // Если это ошибка, добавляем в чат
-      if (isError) {
-        addChatMessage('Система', `Ошибка: ${message}`);
-      }
     }
     
-    // Запускаем игру в автономном режиме при загрузке страницы
-    document.addEventListener('DOMContentLoaded', function() {
-      // Инициализируем игру сразу в автономном режиме
-      initGame();
-      
-      // Информационное сообщение
-      setTimeout(() => {
-        showNotification('Игра запущена в автономном режиме. Вы можете играть даже без подключения к интернету!');
-      }, 500);
-    });
+    // Запускаем игру при загрузке страницы
+    document.addEventListener('DOMContentLoaded', initGame);
   </script>
 </body>
 </html> 
