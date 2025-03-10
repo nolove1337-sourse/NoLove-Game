@@ -621,146 +621,59 @@
   </div>
   
   <script>
-    // Конфигурация подключения к серверу
+    // Принудительный автономный режим - всегда включен
+    const FORCE_OFFLINE_MODE = true;
+    
+    // Конфигурация подключения к серверу - не используется в автономном режиме
     const SERVER_CONFIG = {
-      // Автоматическое определение URL сервера
-      // Поддерживает Netlify, Glitch, Railway и локальный сервер
-      url: (() => {
-        // Получаем текущий домен
-        const currentHost = window.location.hostname;
-        
-        // Если мы на локальном хосте, используем локальный сервер
-        if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
-          return 'http://localhost:8000';
-        }
-        
-        // Если мы на Glitch, определяем автоматически
-        if (currentHost.includes('glitch.me')) {
-          return window.location.origin;
-        }
-        
-        // Если мы на Railway, определяем автоматически
-        if (currentHost.includes('up.railway.app')) {
-          return window.location.origin;
-        }
-        
-        // Для Netlify - пытаемся подключиться к Glitch (замените на свой сервер)
-        // ЗАМЕНИТЕ НА URL ВАШЕГО СЕРВЕРА на Glitch ИЛИ Railway:
-        return 'https://nolove-game.glitch.me';
-      })(),
+      url: 'http://localhost:8000', // Неважно, так как мы не будем подключаться
       options: {
         reconnection: true,
-        reconnectionAttempts: Infinity,
+        reconnectionAttempts: 5,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
-        timeout: 20000,
-        autoConnect: true,
-        transports: ['websocket', 'polling']
+        timeout: 5000,
+        autoConnect: false // Не подключаться автоматически
       }
     };
 
-    // Автоматическое подключение к серверу или резервный демо-режим
+    // Переменные для игры
     let socket;
-    let isDemoMode = false;
-
-    try {
-      // Обновляем интерфейс при попытке подключения
+    let isDemoMode = true; // Всегда в демо-режиме
+    
+    // Инициализируем игру сразу в автономном режиме
+    function initGame() {
+      // Обновляем интерфейс для автономного режима
       document.querySelector('.mode-selector label').innerHTML = 
-        '<input type="checkbox" id="demoModeToggle" disabled>Подключение к серверу...';
+        '<input type="checkbox" id="demoModeToggle" checked disabled>Игра работает в автономном режиме';
       
-      // Создаем индикатор статуса соединения
+      // Индикатор статуса автономного режима
       const statusIndicator = document.createElement('div');
       statusIndicator.style.cssText = 'position: fixed; bottom: 50px; right: 20px; font-size: 12px; color: #FFA500;';
-      statusIndicator.textContent = 'Статус: подключение...';
+      statusIndicator.textContent = 'Статус: автономный режим';
       statusIndicator.id = 'connectionStatus';
       document.body.appendChild(statusIndicator);
-      
-      // Пытаемся подключиться к серверу
-      console.log('[CONNECTION] Попытка подключения к серверу:', SERVER_CONFIG.url);
-      socket = io(SERVER_CONFIG.url, SERVER_CONFIG.options);
-      
-      // Обработка успешного подключения
-      socket.on('connect', () => {
-        console.log('[CONNECTION] Соединение с сервером установлено!');
-        document.querySelector('.mode-selector label').innerHTML = 
-          '<input type="checkbox" id="demoModeToggle" disabled>Подключено к серверу';
-        
-        const statusIndicator = document.getElementById('connectionStatus');
-        if (statusIndicator) {
-          statusIndicator.textContent = 'Статус: подключено';
-          statusIndicator.style.color = '#4CAF50';
-        }
-        
-        showNotification('Подключение к серверу установлено!', false);
-      });
-      
-      // Обработка ошибок соединения
-      socket.on('connect_error', (error) => {
-        console.error('[CONNECTION] Ошибка подключения к серверу:', error);
-        
-        // Если не удалось подключиться к серверу после нескольких попыток,
-        // автоматически переключаемся в демо-режим
-        if (!isDemoMode && !socket.connected) {
-          console.log('[CONNECTION] Переключение в автономный демо-режим...');
-          switchToDemoMode();
-        }
-      });
-      
-      // Обработка разрыва соединения
-      socket.on('disconnect', (reason) => {
-        console.log('[CONNECTION] Соединение с сервером потеряно:', reason);
-        
-        const statusIndicator = document.getElementById('connectionStatus');
-        if (statusIndicator) {
-          statusIndicator.textContent = 'Статус: переподключение...';
-          statusIndicator.style.color = '#FFA500';
-        }
-        
-        document.querySelector('.mode-selector label').innerHTML = 
-          '<input type="checkbox" id="demoModeToggle" disabled>Переподключение...';
-        
-        // Если соединение было разорвано и не восстановлено за 5 секунд,
-        // переключаемся в демо-режим
-        setTimeout(() => {
-          if (!socket.connected && !isDemoMode) {
-            console.log('[CONNECTION] Переключение в автономный демо-режим после разрыва соединения...');
-            switchToDemoMode();
-          }
-        }, 5000);
-      });
-    } catch (error) {
-      console.error('[CONNECTION] Ошибка инициализации сокета:', error);
-      switchToDemoMode();
-    }
-    
-    // Функция переключения в демо-режим
-    function switchToDemoMode() {
-      isDemoMode = true;
-      
-      document.querySelector('.mode-selector label').innerHTML = 
-        '<input type="checkbox" id="demoModeToggle" checked disabled>Автономный режим (сервер недоступен)';
-      
-      const statusIndicator = document.getElementById('connectionStatus');
-      if (statusIndicator) {
-        statusIndicator.textContent = 'Статус: автономный режим';
-        statusIndicator.style.color = '#FFA500';
-      }
       
       // Создаем локальную эмуляцию сервера
       socket = createLocalServer();
       
-      showNotification('Сервер недоступен. Переключено в автономный режим', true);
-      addChatMessage('Система', 'Не удалось подключиться к серверу. Игра запущена в автономном режиме без мультиплеера.');
+      // Триггерим событие подключения для инициализации игры
+      setTimeout(() => {
+        if (socket.callbacks.connect) {
+          socket.callbacks.connect.forEach(callback => callback());
+        }
+        addChatMessage('Система', 'Игра запущена в автономном режиме. Играть можно без интернета!');
+      }, 100);
     }
 
-    // Функция создания локального сервера (оставляем для резервного режима)
+    // Функция создания локального сервера
     function createLocalServer() {
       return {
         callbacks: {},
-        connected: false,
+        connected: true,
         gameActive: false,
 
-        // Улучшенная система обработки событий
+        // Система обработки событий
         on: function(event, callback) {
           try {
             if (!this.callbacks[event]) {
@@ -768,13 +681,11 @@
             }
             this.callbacks[event].push(callback);
 
-            // Автоматическое подключение
+            // Симулируем мгновенное подключение
             if (event === 'connect') {
               setTimeout(() => {
-                this.connected = true;
                 callback();
-                this._emitSystemMessage('Соединение установлено');
-              }, 100);
+              }, 50);
             }
           } catch (err) {
             console.error('Ошибка при регистрации события:', err);
@@ -782,7 +693,7 @@
           }
         },
 
-        // Улучшенная система отправки событий
+        // Система отправки событий
         emit: function(event, data, callback) {
           try {
             console.log('[EMIT]', event, data);
@@ -1399,6 +1310,17 @@
         addChatMessage('Система', `Ошибка: ${message}`);
       }
     }
+    
+    // Запускаем игру в автономном режиме при загрузке страницы
+    document.addEventListener('DOMContentLoaded', function() {
+      // Инициализируем игру сразу в автономном режиме
+      initGame();
+      
+      // Информационное сообщение
+      setTimeout(() => {
+        showNotification('Игра запущена в автономном режиме. Вы можете играть даже без подключения к интернету!');
+      }, 500);
+    });
   </script>
 </body>
 </html> 
